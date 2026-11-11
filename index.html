@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>妞妞記帳 - 專屬雙人與多卡智慧記帳</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts Inter & Noto Sans TC -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fff1f2',
+              100: '#ffe4e6',
+              200: '#fecdd3',
+              400: '#fb7185',
+              500: '#f43f5e',
+              600: '#e11d48',
+              700: '#be123c',
+            },
+            cream: '#fdfbf7',
+            cardbg: '#ffffff',
+          },
+          fontFamily: {
+            sans: ['"Noto Sans TC"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* 隱藏原生滾動條但保持滾動 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    body {
+      background-color: #f7f5f0;
+      color: #292524;
+      font-family: 'Noto Sans TC', sans-serif;
+      touch-action: manipulation;
+    }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+    }
+    /* 點擊回饋波紋 */
+    .tap-scale {
+      transition: transform 0.12s ease-in-out, opacity 0.12s;
+    }
+    .tap-scale:active {
+      transform: scale(0.96);
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-24 text-stone-800 antialiased selection:bg-rose-200">
+
+  <!-- 頂部導航 -->
+  <header class="sticky top-0 z-40 bg-[#f7f5f0]/90 backdrop-blur-md px-4 py-3 border-b border-stone-200/60 flex items-center justify-between">
+    <div class="flex items-center space-x-2">
+      <div class="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center font-bold text-sm shadow-sm">
+        妞
+      </div>
+      <div>
+        <h1 class="text-base font-bold text-stone-800 leading-tight">妞妞記帳</h1>
+        <p class="text-[11px] text-stone-500 font-medium" id="today-display">載入中...</p>
+      </div>
+    </div>
+    <div class="flex items-center space-x-2">
+      <button onclick="toggleSettingsModal()" class="tap-scale px-2.5 py-1.5 rounded-full bg-stone-200/70 text-stone-700 text-xs font-semibold flex items-center gap-1">
+        <span>⚙️ 備份/資料</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 主容器 -->
+  <main class="max-w-md mx-auto px-4 pt-3 space-y-4">
+
+    <!-- 1. 信用卡即時結帳日倒數區（水平滑動卡片） -->
+    <section>
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-stone-500 flex items-center gap-1">
+          <span>💳</span> 信用卡結帳日即時監控
+        </h2>
+        <span class="text-[11px] text-rose-500 font-medium">左右滑動檢視</span>
+      </div>
+      <div id="card-carousel" class="flex gap-3 overflow-x-auto no-scrollbar pb-1 snap-x snap-mandatory">
+        <!-- 動態渲染卡片 -->
+      </div>
+    </section>
+
+    <!-- 2. 便捷記帳主卡片 -->
+    <section class="glass-card rounded-3xl p-5 border border-stone-200/80 shadow-sm relative overflow-hidden">
+      <div class="flex items-center justify-between pb-3 border-b border-stone-100 mb-3">
+        <span class="text-xs font-bold text-stone-500 tracking-wider">新增一筆花費</span>
+        <!-- 日期選擇 -->
+        <input 
+          type="date" 
+          id="entry-date" 
+          class="text-xs font-semibold bg-stone-100 text-stone-700 px-2.5 py-1 rounded-xl outline-none border border-transparent focus:border-rose-400"
+          onchange="updateBillingPeriodNotice()"
+        />
+      </div>
+
+      <!-- 金額輸入與幣別 -->
+      <div class="mb-4">
+        <div class="text-[11px] font-bold text-stone-400 mb-1">消費總金額 (TWD)</div>
+        <div class="relative flex items-center">
+          <span class="absolute left-3 text-2xl font-extrabold text-stone-400">NT$</span>
+          <input 
+            type="number" 
+            id="entry-amount" 
+            inputmode="numeric" 
+            placeholder="0" 
+            class="w-full pl-14 pr-4 py-2 text-3xl font-extrabold text-stone-800 bg-stone-50 rounded-2xl border-2 border-transparent focus:border-rose-400 focus:bg-white outline-none transition"
+            oninput="handleAmountChange()"
+          />
+        </div>
+      </div>
+
+      <!-- 分類選擇 (Emoji 標籤群) -->
+      <div class="mb-4">
+        <label class="block text-[11px] font-bold text-stone-400 mb-1.5">支出類別</label>
+        <div class="grid grid-cols-4 gap-2" id="category-selector">
+          <!-- JS 產出分類 -->
+        </div>
+      </div>
+
+      <!-- 付款方式選擇 (分類折疊標籤) -->
+      <div class="mb-4">
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="text-[11px] font-bold text-stone-400">付款方式</label>
+          <span id="selected-payment-display" class="text-xs font-semibold text-rose-600">國泰 CUBE 卡</span>
+        </div>
+
+        <!-- 快速付款類別分頁 -->
+        <div class="flex bg-stone-100 p-1 rounded-xl text-xs font-bold text-stone-500 mb-2">
+          <button type="button" onclick="switchPayGroup('card')" id="tab-card" class="flex-1 py-1 text-center rounded-lg bg-white text-stone-800 shadow-sm transition">信用卡</button>
+          <button type="button" onclick="switchPayGroup('transfer')" id="tab-transfer" class="flex-1 py-1 text-center rounded-lg transition">轉帳</button>
+          <button type="button" onclick="switchPayGroup('cash')" id="tab-cash" class="flex-1 py-1 text-center rounded-lg transition">現金/點數</button>
+        </div>
+
+        <!-- 卡別/付款按鈕清單 -->
+        <div id="payment-options-container" class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto no-scrollbar p-1">
+          <!-- JS 注入選項 -->
+        </div>
+
+        <!-- 信用卡週期提示 -->
+        <div id="billing-hint" class="mt-2 text-[11px] font-medium text-stone-600 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-100 hidden flex items-center gap-1.5">
+          <span>📅</span>
+          <span id="billing-hint-text">結帳日計算中...</span>
+        </div>
+      </div>
+
+      <!-- 拆帳區塊 (妞/凱雙人核心) -->
+      <div class="mb-4 bg-stone-50 rounded-2xl p-3 border border-stone-200/70">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5">
+            <span class="text-sm">👥</span>
+            <span class="text-xs font-bold text-stone-700">這筆費用要拆帳嗎？</span>
+          </div>
+          <div class="flex bg-stone-200 p-0.5 rounded-xl">
+            <button type="button" onclick="setSplitToggle(false)" id="split-no-btn" class="px-3 py-1 text-xs font-bold rounded-lg bg-white shadow-sm text-stone-800 transition">否</button>
+            <button type="button" onclick="setSplitToggle(true)" id="split-yes-btn" class="px-3 py-1 text-xs font-bold rounded-lg text-stone-500 transition">是</button>
+          </div>
+        </div>
+
+        <!-- 展開的拆帳細節 -->
+        <div id="split-details" class="mt-3 pt-3 border-t border-stone-200/60 hidden space-y-2.5">
+          <div>
+            <div class="text-[11px] font-semibold text-stone-500 mb-1">費用是誰要負擔？</div>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button type="button" onclick="setSplitPayer('妞凱一起')" id="payer-both" class="py-1.5 text-xs font-bold rounded-xl border border-rose-400 bg-rose-50 text-rose-600">妞凱平分</button>
+              <button type="button" onclick="setSplitPayer('妞')" id="payer-nyo" class="py-1.5 text-xs font-bold rounded-xl border border-stone-200 bg-white text-stone-600">妞自付</button>
+              <button type="button" onclick="setSplitPayer('凱')" id="payer-kai" class="py-1.5 text-xs font-bold rounded-xl border border-stone-200 bg-white text-stone-600">凱出</button>
+            </div>
+          </div>
+
+          <!-- 拆帳計算顯示與手動微調 -->
+          <div class="flex items-center justify-between text-xs bg-white p-2.5 rounded-xl border border-stone-200">
+            <div>
+              <span class="text-stone-500 block text-[10px]">妞實際負擔金額</span>
+              <span id="split-summary-label" class="text-rose-600 font-extrabold text-sm">$0</span>
+            </div>
+            <div class="text-right">
+              <label class="text-[10px] text-stone-400 block">手動修正金額</label>
+              <input 
+                type="number" 
+                id="manual-split-amount" 
+                placeholder="手動填入" 
+                class="w-24 text-right font-bold text-xs bg-stone-50 px-2 py-1 rounded-lg border border-stone-200 outline-none focus:border-rose-400"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 備註輸入 -->
+      <div class="mb-4">
+        <input 
+          type="text" 
+          id="entry-note" 
+          placeholder="備註說明（例如：全聯買菜、壽司郎晚餐）" 
+          class="w-full text-xs bg-stone-50 px-3.5 py-2.5 rounded-xl border border-stone-200 outline-none focus:border-rose-400"
+        />
+      </div>
+
+      <!-- 送出按鈕 -->
+      <button 
+        type="button" 
+        onclick="saveTransaction()" 
+        class="tap-scale w-full py-3 bg-gradient-to-r from-rose-500 to-rose-600 text-white font-bold rounded-2xl shadow-md shadow-rose-200 text-sm tracking-wider flex items-center justify-center gap-2"
+      >
+        <span>✨ 記錄這筆花費</span>
+      </button>
+    </section>
+
+    <!-- 3. 本月消費與明細清單 -->
+    <section class="space-y-3 pt-2">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-bold text-stone-800">消費明細</h2>
+          <p class="text-[11px] text-stone-500" id="stats-summary">統計載入中...</p>
+        </div>
+        <div class="flex gap-1.5">
+          <select id="filter-month" onchange="renderHistory()" class="text-xs font-semibold bg-white border border-stone-200 rounded-xl px-2 py-1 outline-none text-stone-700">
+            <!-- 動態月份選單 -->
+          </select>
+        </div>
+      </div>
+
+      <!-- 明細列表容器 -->
+      <div id="transactions-list" class="space-y-2">
+        <!-- JS 產出紀錄卡片 -->
+      </div>
+    </section>
+  </main>
+
+  <!-- 提示浮動框 (替代 alert) -->
+  <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-stone-900/90 text-white text-xs font-semibold px-4 py-2.5 rounded-full shadow-lg transition-all duration-300 opacity-0 pointer-events-none transform -translate-y-2">
+    訊息通知
+  </div>
+
+  <!-- 設定與資料備份 Modal -->
+  <div id="settings-modal" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-xl">
+      <div class="flex items-center justify-between pb-2 border-b border-stone-100">
+        <h3 class="text-sm font-bold text-stone-800">資料管理與備份</h3>
+        <button onclick="toggleSettingsModal()" class="text-stone-400 hover:text-stone-600 text-sm font-bold">✕</button>
+      </div>
+
+      <p class="text-xs text-stone-500 leading-relaxed">
+        所有資料直接儲存在手機瀏覽器（localStorage），離線也能使用。建議定期匯出備份或匯入至 Excel / Google 試算表。
+      </p>
+
+      <div class="space-y-2">
+        <button onclick="exportToCSV()" class="w-full py-2.5 bg-rose-50 text-rose-600 font-bold text-xs rounded-xl border border-rose-200 flex items-center justify-center gap-1.5">
+          <span>📤 匯出資料為 CSV (Excel相容)</span>
+        </button>
+
+        <label class="w-full py-2.5 bg-stone-100 text-stone-700 font-bold text-xs rounded-xl border border-stone-200 flex items-center justify-center gap-1.5 cursor-pointer">
+          <span>📥 匯入備份 (JSON 格式)</span>
+          <input type="file" id="import-file" accept=".json" class="hidden" onchange="importData(event)" />
+        </label>
+
+        <button onclick="exportJSONBackup()" class="w-full py-2 bg-stone-50 text-stone-600 font-medium text-xs rounded-xl border border-stone-200">
+          💾 備份全站設定與紀錄 (JSON)
+        </button>
+      </div>
+
+      <div class="pt-2 border-t border-stone-100">
+        <button onclick="clearAllData()" class="w-full py-2 text-stone-400 hover:text-red-500 font-semibold text-[11px]">
+          ⚠️ 清除全部紀錄（請謹慎操作）
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript 核心邏輯 -->
+  <script>
+    // 信用卡結帳日設定定義表
+    const CREDIT_CARDS = [
+      { id: 'shanghai_simple', bank: '上海商銀', name: '上海簡單卡', closingDay: 2, bg: 'from-amber-600 to-amber-700' },
+      { id: 'shanghai_minion', bank: '上海商銀', name: '上海小小兵卡', closingDay: 2, bg: 'from-amber-500 to-yellow-600' },
+      { id: 'cathay_cube', bank: '國泰世華', name: '國泰 CUBE 卡', closingDay: 7, bg: 'from-emerald-600 to-teal-700' },
+      { id: 'fubon_j', bank: '台北富邦', name: '富邦 J 卡', closingDay: 22, bg: 'from-sky-600 to-blue-700' },
+      { id: 'fubon_momo', bank: '台北富邦', name: '富邦 MOMO 卡', closingDay: 22, bg: 'from-pink-600 to-rose-700' },
+      { id: 'fubon_costco', bank: '台北富邦', name: '富邦 COSTCO 卡', closingDay: 22, bg: 'from-blue-700 to-indigo-800' },
+      { id: 'taishin_richart', bank: '台新銀行', name: '台新 Richart 卡', closingDay: 23, bg: 'from-red-600 to-rose-700' },
+      { id: 'esun_nanshan', bank: '玉山銀行', name: '玉山南山聯名卡', closingDay: 25, bg: 'from-teal-600 to-emerald-700' },
+      { id: 'esun_ubear', bank: '玉山銀行', name: '玉山 U BEAR 卡', closingDay: 25, bg: 'from-stone-700 to-stone-900' },
+      { id: 'sinopac_sport', bank: '永豐銀行', name: '永豐 Sport 卡', closingDay: 26, bg: 'from-orange-600 to-amber-700' },
+      { id: 'sinopac_dawho', bank: '永豐銀行', name: '永豐大戶卡', closingDay: 26, bg: 'from-zinc-800 to-black' },
+      { id: 'ctbc_lalaport', bank: '中國信託', name: '中信 LalaPort 卡', closingDay: 27, bg: 'from-teal-700 to-cyan-800' },
+      { id: 'ctbc_unipon', bank: '中國信託', name: '中信 Unipon 卡', closingDay: 27, bg: 'from-blue-600 to-cyan-700' },
+    ];
+
+    // 非信用卡付款選項
+    const NON_CARD_PAYMENTS = {
+      transfer: ['LINE 轉帳', '銀行轉帳 - 富邦', '銀行轉帳 - 永豐', '銀行轉帳 - 將來'],
+      cash: ['現金', 'LINE POINT']
+    };
+
+    // 支出類別
+    const CATEGORIES = [
+      { id: 'food', label: '餐飲美食', icon: '🍲' },
+      { id: 'daily', label: '日常採買', icon: '🛒' },
+      { id: 'traffic', label: '交通出行', icon: '🛵' },
+      { id: 'entertainment', label: '休閒娛樂', icon: '🎬' },
+      { id: 'shopping', label: '服裝購物', icon: '🛍️' },
+      { id: 'bill', label: '帳單固定', icon: '🧾' },
+      { id: 'medical', label: '醫療保健', icon: '💊' },
+      { id: 'other', label: '其他費用', icon: '✨' },
+    ];
+
+    // 當前表單狀態
+    let currentCategory = CATEGORIES[0].id;
+    let currentPayment = '國泰 CUBE 卡';
+    let currentPayGroup = 'card';
+    let isSplit = false;
+    let currentSplitPayer = '妞凱一起';
+
+    // 本地紀錄資料庫
+    let transactions = [];
+
+    // 初始化載入
+    window.addEventListener('DOMContentLoaded', () => {
+      // 設置預設日期為今天
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      document.getElementById('entry-date').value = `${year}-${month}-${day}`;
+      
+      const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+      document.getElementById('today-display').textContent = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日 (週${dayNames[today.getDay()]})`;
+
+      loadStorage();
+      renderCategories();
+      switchPayGroup('card');
+      updateBillingPeriodNotice();
+      renderCardCarousel();
+      populateMonthFilter();
+      renderHistory();
+    });
+
+    // 讀取 localStorage
+    function loadStorage() {
+      try {
+        const stored = localStorage.getItem('nyonyo_accounting_data');
+        if (stored) {
+          transactions = JSON.parse(stored);
+        } else {
+          // 提供兩筆友好的示範資料
+          transactions = [
+            {
+              id: 'sample-1',
+              date: new Date().toISOString().split('T')[0],
+              category: 'food',
+              amount: 360,
+              payment: '國泰 CUBE 卡',
+              isCard: true,
+              billingMonth: getBillingStatementMonth(new Date().toISOString().split('T')[0], 7),
+              isSplit: true,
+              splitPayer: '妞凱一起',
+              nyoShare: 180,
+              note: '晚餐吃咖哩飯'
+            }
+          ];
+          saveStorage();
+        }
+      } catch (e) {
+        transactions = [];
+      }
+    }
+
+    function saveStorage() {
+      localStorage.setItem('nyonyo_accounting_data', JSON.stringify(transactions));
+    }
+
+    // 顯示 Toast 訊息
+    function showToast(text) {
+      const toast = document.getElementById('toast');
+      toast.textContent = text;
+      toast.classList.remove('opacity-0', '-translate-y-2');
+      toast.classList.add('opacity-100', 'translate-y-0');
+      setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', '-translate-y-2');
+      }, 2200);
+    }
+
+    // 渲染分類按鈕
+    function renderCategories() {
+      const container = document.getElementById('category-selector');
+      container.innerHTML = CATEGORIES.map(cat => {
+        const isSelected = cat.id === currentCategory;
+        return `
+          <button 
+            type="button" 
+            onclick="selectCategory('${cat.id}')"
+            class="tap-scale flex flex-col items-center justify-center p-2 rounded-2xl border transition ${
+              isSelected 
+                ? 'bg-rose-50 border-rose-400 text-rose-600 shadow-sm' 
+                : 'bg-stone-50 border-stone-200/60 text-stone-600 hover:bg-stone-100'
+            }"
+          >
+            <span class="text-xl mb-0.5">${cat.icon}</span>
+            <span class="text-[11px] font-bold">${cat.label}</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function selectCategory(catId) {
+      currentCategory = catId;
+      renderCategories();
+    }
+
+    // 切換付款分組標籤
+    function switchPayGroup(group) {
+      currentPayGroup = group;
+      ['card', 'transfer', 'cash'].forEach(g => {
+        const btn = document.getElementById(`tab-${g}`);
+        if (g === group) {
+          btn.className = 'flex-1 py-1 text-center rounded-lg bg-white text-stone-800 shadow-sm transition font-bold';
+        } else {
+          btn.className = 'flex-1 py-1 text-center rounded-lg text-stone-500 transition font-medium';
+        }
+      });
+
+      const container = document.getElementById('payment-options-container');
+      let items = [];
+
+      if (group === 'card') {
+        items = CREDIT_CARDS.map(c => ({ name: c.name, meta: `${c.bank} · ${c.closingDay}日結` }));
+      } else if (group === 'transfer') {
+        items = NON_CARD_PAYMENTS.transfer.map(t => ({ name: t, meta: '轉帳' }));
+      } else {
+        items = NON_CARD_PAYMENTS.cash.map(c => ({ name: c, meta: '現金/點數' }));
+      }
+
+      container.innerHTML = items.map(item => {
+        const isSelected = item.name === currentPayment;
+        return `
+          <button 
+            type="button" 
+            onclick="selectPayment('${item.name}')"
+            class="tap-scale text-xs px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 transition ${
+              isSelected 
+                ? 'bg-stone-800 text-white border-stone-800 font-bold shadow-sm' 
+                : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100 font-medium'
+            }"
+          >
+            <span>${item.name}</span>
+            <span class="text-[10px] opacity-75 font-normal">(${item.meta})</span>
+          </button>
+        `;
+      }).join('');
+
+      updateBillingPeriodNotice();
+    }
+
+    function selectPayment(paymentName) {
+      currentPayment = paymentName;
+      document.getElementById('selected-payment-display').textContent = paymentName;
+      switchPayGroup(currentPayGroup);
+      updateBillingPeriodNotice();
+    }
+
+    // 計算特定日期屬於哪一期信用卡帳單
+    function getBillingStatementMonth(dateStr, closingDay) {
+      const d = new Date(dateStr);
+      const day = d.getDate();
+      let month = d.getMonth() + 1;
+      let year = d.getFullYear();
+
+      // 消費日在結帳日當天或之前 -> 屬當期（當月）帳單
+      // 消費日超過結帳日 -> 遞延至下個月帳單
+      if (day > closingDay) {
+        month += 1;
+        if (month > 12) {
+          month = 1;
+          year += 1;
+        }
+      }
+      return `${year}年${String(month).padStart(2, '0')}月帳單`;
+    }
+
+    // 計算距離結帳日還有幾天
+    function getDaysUntilClosing(closingDay) {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+      const currentDay = now.getDate();
+
+      let targetDate = new Date(currentYear, currentMonth, closingDay);
+      if (currentDay > closingDay) {
+        // 本月已結帳，計算下月結帳日
+        targetDate = new Date(currentYear, currentMonth + 1, closingDay);
+      }
+      const diffTime = targetDate - new Date(currentYear, currentMonth, currentDay);
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    // 更新帳單週期提示資訊
+    function updateBillingPeriodNotice() {
+      const hintBox = document.getElementById('billing-hint');
+      const hintText = document.getElementById('billing-hint-text');
+      const dateVal = document.getElementById('entry-date').value;
+
+      const cardObj = CREDIT_CARDS.find(c => c.name === currentPayment);
+      if (cardObj && dateVal) {
+        const transDay = new Date(dateVal).getDate();
+        const billStatement = getBillingStatementMonth(dateVal, cardObj.closingDay);
+        
+        let message = `結帳日為每月 ${cardObj.closingDay} 日。`;
+        if (transDay <= cardObj.closingDay) {
+          message += ` 消費日 (${transDay}日) ≦ 結帳日，歸入「${billStatement}」！`;
+        } else {
+          message += ` 消費日 (${transDay}日) > 結帳日，延後至「${billStatement}」繳納！`;
+        }
+        hintText.textContent = message;
+        hintBox.classList.remove('hidden');
+      } else {
+        hintBox.classList.add('hidden');
+      }
+    }
+
+    // 拆帳切換開關
+    function setSplitToggle(enabled) {
+      isSplit = enabled;
+      const noBtn = document.getElementById('split-no-btn');
+      const yesBtn = document.getElementById('split-yes-btn');
+      const details = document.getElementById('split-details');
+
+      if (enabled) {
+        yesBtn.className = 'px-3 py-1 text-xs font-bold rounded-lg bg-white shadow-sm text-rose-600 transition';
+        noBtn.className = 'px-3 py-1 text-xs font-bold rounded-lg text-stone-500 transition';
+        details.classList.remove('hidden');
+      } else {
+        noBtn.className = 'px-3 py-1 text-xs font-bold rounded-lg bg-white shadow-sm text-stone-800 transition';
+        yesBtn.className = 'px-3 py-1 text-xs font-bold rounded-lg text-stone-500 transition';
+        details.classList.add('hidden');
+      }
+      handleAmountChange();
+    }
+
+    // 選擇拆帳對象
+    function setSplitPayer(payer) {
+      currentSplitPayer = payer;
+      ['妞凱一起', '妞', '凱'].forEach(p => {
+        let btnId = p === '妞凱一起' ? 'payer-both' : (p === '妞' ? 'payer-nyo' : 'payer-kai');
+        const btn = document.getElementById(btnId);
+        if (p === payer) {
+          btn.className = 'py-1.5 text-xs font-bold rounded-xl border border-rose-400 bg-rose-50 text-rose-600';
+        } else {
+          btn.className = 'py-1.5 text-xs font-bold rounded-xl border border-stone-200 bg-white text-stone-600';
+        }
+      });
+      handleAmountChange();
+    }
+
+    // 金額輸入聯動計算
+    function handleAmountChange() {
+      const rawAmt = parseFloat(document.getElementById('entry-amount').value) || 0;
+      const manualInput = document.getElementById('manual-split-amount');
+      const summaryLabel = document.getElementById('split-summary-label');
+
+      let nyoShare = rawAmt;
+      if (isSplit) {
+        if (currentSplitPayer === '妞凱一起') {
+          nyoShare = Math.round(rawAmt / 2);
+        } else if (currentSplitPayer === '妞') {
+          nyoShare = rawAmt;
+        } else if (currentSplitPayer === '凱') {
+          nyoShare = 0;
+        }
+      }
+
+      summaryLabel.textContent = `$${nyoShare.toLocaleString()}`;
+      if (!manualInput.value || document.activeElement !== manualInput) {
+        manualInput.value = isSplit ? nyoShare : '';
+      }
+    }
+
+    // 儲存紀錄
+    function saveTransaction() {
+      const date = document.getElementById('entry-date').value;
+      const amount = parseFloat(document.getElementById('entry-amount').value);
+      const note = document.getElementById('entry-note').value.trim();
+
+      if (!date) {
+        showToast('請選擇日期');
+        return;
+      }
+      if (!amount || amount <= 0) {
+        showToast('請輸入有效金額');
+        return;
+      }
+
+      const cardObj = CREDIT_CARDS.find(c => c.name === currentPayment);
+      const isCard = !!cardObj;
+      let billingMonth = isCard ? getBillingStatementMonth(date, cardObj.closingDay) : null;
+
+      let nyoShare = amount;
+      if (isSplit) {
+        const manualVal = parseFloat(document.getElementById('manual-split-amount').value);
+        if (!isNaN(manualVal)) {
+          nyoShare = manualVal;
+        } else if (currentSplitPayer === '妞凱一起') {
+          nyoShare = Math.round(amount / 2);
+        } else if (currentSplitPayer === '凱') {
+          nyoShare = 0;
+        }
+      }
+
+      const item = {
+        id: 'tx_' + Date.now(),
+        date,
+        category: currentCategory,
+        amount,
+        payment: currentPayment,
+        isCard,
+        billingMonth,
+        isSplit,
+        splitPayer: isSplit ? currentSplitPayer : null,
+        nyoShare,
+        note
+      };
+
+      transactions.unshift(item);
+      saveStorage();
+
+      // 清空輸入並回饋
+      document.getElementById('entry-amount').value = '';
+      document.getElementById('entry-note').value = '';
+      document.getElementById('manual-split-amount').value = '';
+      setSplitToggle(false);
+      handleAmountChange();
+
+      showToast('記帳成功！✨');
+      renderCardCarousel();
+      populateMonthFilter();
+      renderHistory();
+    }
+
+    // 刪除項目
+    function deleteItem(id) {
+      transactions = transactions.filter(t => t.id !== id);
+      saveStorage();
+      showToast('已刪除紀錄');
+      renderCardCarousel();
+      renderHistory();
+    }
+
+    // 渲染上方信用卡輪播卡片
+    function renderCardCarousel() {
+      const carousel = document.getElementById('card-carousel');
+      
+      // 計算每張卡片當期消費累計
+      const cardStats = CREDIT_CARDS.map(card => {
+        const daysLeft = getDaysUntilClosing(card.closingDay);
+        
+        // 算出該卡片當前未結帳消費總額
+        const currentBillMonth = getBillingStatementMonth(new Date().toISOString().split('T')[0], card.closingDay);
+        const cardTotal = transactions
+          .filter(t => t.payment === card.name && t.billingMonth === currentBillMonth)
+          .reduce((sum, t) => sum + t.amount, 0);
+
+        return {
+          ...card,
+          daysLeft,
+          currentBillMonth,
+          cardTotal
+        };
+      });
+
+      // 依距離結帳日天數由近到遠排序，方便一眼看最急迫的
+      cardStats.sort((a, b) => a.daysLeft - b.daysLeft);
+
+      carousel.innerHTML = cardStats.map(c => `
+        <div class="snap-start min-w-[210px] p-3.5 rounded-2xl bg-gradient-to-br ${c.bg} text-white shadow-md relative overflow-hidden flex flex-col justify-between">
+          <div class="absolute -right-4 -bottom-4 w-20 h-20 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
+          <div>
+            <div class="flex items-center justify-between text-[11px] opacity-85">
+              <span>${c.bank}</span>
+              <span class="bg-black/25 px-2 py-0.5 rounded-full font-bold">每期 ${c.closingDay} 日結</span>
+            </div>
+            <div class="font-extrabold text-sm tracking-wide mt-1">${c.name}</div>
+          </div>
+          <div class="mt-4 pt-2 border-t border-white/20 flex items-end justify-between">
+            <div>
+              <span class="text-[10px] opacity-75 block">當期累計 (${c.currentBillMonth.replace('帳單','')})</span>
+              <span class="text-base font-black">$${c.cardTotal.toLocaleString()}</span>
+            </div>
+            <div class="text-right">
+              <span class="text-[10px] opacity-75 block">結帳倒數</span>
+              <span class="text-xs font-black ${c.daysLeft <= 3 ? 'text-amber-300 animate-pulse' : 'text-white'}">${c.daysLeft === 0 ? '今日結帳！' : c.daysLeft + ' 天'}</span>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // 填充電腦月份篩選器
+    function populateMonthFilter() {
+      const select = document.getElementById('filter-month');
+      const months = new Set();
+      
+      transactions.forEach(t => {
+        months.add(t.date.slice(0, 7)); // YYYY-MM
+      });
+
+      // 若目前無資料，加當月
+      const currentYearMonth = new Date().toISOString().slice(0, 7);
+      months.add(currentYearMonth);
+
+      const sortedMonths = Array.from(months).sort().reverse();
+      const currentSelected = select.value || currentYearMonth;
+
+      select.innerHTML = `
+        <option value="all">全部歷史明細</option>
+        ${sortedMonths.map(m => `<option value="${m}" ${m === currentSelected ? 'selected' : ''}>${m.replace('-', ' 年 ')} 月</option>`).join('')}
+      `;
+    }
+
+    // 渲染消費明細清單
+    function renderHistory() {
+      const filterMonth = document.getElementById('filter-month').value;
+      const listContainer = document.getElementById('transactions-list');
+      const statsSummary = document.getElementById('stats-summary');
+
+      let filtered = transactions;
+      if (filterMonth && filterMonth !== 'all') {
+        filtered = transactions.filter(t => t.date.startsWith(filterMonth));
+      }
+
+      // 統計數據
+      const totalAmount = filtered.reduce((s, t) => s + t.amount, 0);
+      const totalNyo = filtered.reduce((s, t) => s + (t.isSplit ? t.nyoShare : t.amount), 0);
+
+      statsSummary.textContent = `共 ${filtered.length} 筆 · 總計 $${totalAmount.toLocaleString()} (妞負擔 $${totalNyo.toLocaleString()})`;
+
+      if (filtered.length === 0) {
+        listContainer.innerHTML = `
+          <div class="text-center py-10 text-stone-400 bg-white rounded-2xl border border-stone-200">
+            <span class="text-3xl block mb-1">📝</span>
+            <span class="text-xs">目前這個月份沒有任何支出紀錄</span>
+          </div>
+        `;
+        return;
+      }
+
+      listContainer.innerHTML = filtered.map(t => {
+        const catObj = CATEGORIES.find(c => c.id === t.category) || { icon: '✨', label: '其他' };
+        
+        let splitBadge = '';
+        if (t.isSplit) {
+          splitBadge = `<span class="bg-rose-50 text-rose-600 text-[10px] px-1.5 py-0.5 rounded-md font-bold">拆帳: ${t.splitPayer} (妞付 $${t.nyoShare})</span>`;
+        }
+
+        let billingBadge = '';
+        if (t.isCard && t.billingMonth) {
+          billingBadge = `<span class="bg-stone-100 text-stone-600 text-[10px] px-1.5 py-0.5 rounded-md font-medium">💳 ${t.billingMonth}</span>`;
+        }
+
+        return `
+          <div class="bg-white rounded-2xl p-3.5 border border-stone-200 shadow-sm flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 rounded-xl bg-stone-100 flex items-center justify-center text-xl">
+                ${catObj.icon}
+              </div>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs font-bold text-stone-800">${t.note || catObj.label}</span>
+                  <span class="text-[10px] text-stone-400 font-medium">${t.date}</span>
+                </div>
+                <div class="text-[11px] text-stone-500 flex flex-wrap items-center gap-1 mt-0.5">
+                  <span class="font-medium">${t.payment}</span>
+                  ${splitBadge}
+                  ${billingBadge}
+                </div>
+              </div>
+            </div>
+
+            <div class="text-right flex items-center space-x-2">
+              <div>
+                <div class="text-sm font-black text-stone-800">$${t.amount.toLocaleString()}</div>
+                ${t.isSplit ? `<div class="text-[10px] text-stone-400">總額</div>` : ''}
+              </div>
+              <button 
+                onclick="deleteItem('${t.id}')" 
+                class="w-7 h-7 text-stone-300 hover:text-red-500 rounded-lg flex items-center justify-center text-xs transition"
+                title="刪除"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Modal 控制
+    function toggleSettingsModal() {
+      const modal = document.getElementById('settings-modal');
+      modal.classList.toggle('hidden');
+      modal.classList.toggle('flex');
+    }
+
+    // 匯出 CSV (Excel 友善，含 UTF-8 BOM)
+    function exportToCSV() {
+      if (transactions.length === 0) {
+        showToast('目前尚無資料可匯出');
+        return;
+      }
+
+      let csv = "\uFEFF"; // 加入 UTF-8 BOM 避免 Excel 開啟亂碼
+      csv += "交易日期,支出類別,總金額,付款方式,信用卡歸屬帳單,是否拆帳,費用分攤,妞實付金額,備註\n";
+
+      transactions.forEach(t => {
+        const cat = CATEGORIES.find(c => c.id === t.category)?.label || t.category;
+        const noteEscaped = (t.note || '').replace(/"/g, '""');
+        csv += `"${t.date}","${cat}",${t.amount},"${t.payment}","${t.billingMonth || '非信用卡'}","${t.isSplit ? '是' : '否'}","${t.splitPayer || '無'}",${t.nyoShare},"${noteEscaped}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `妞妞記帳備份_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('已匯出 CSV！');
+    }
+
+    // 匯出 JSON 完整設定檔
+    function exportJSONBackup() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(transactions, null, 2));
+      const a = document.createElement('a');
+      a.href = dataStr;
+      a.download = `妞妞記帳備份_${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast('已匯出 JSON 備份檔！');
+    }
+
+    // 匯入 JSON
+    function importData(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        try {
+          const imported = JSON.parse(event.target.result);
+          if (Array.isArray(imported)) {
+            transactions = imported;
+            saveStorage();
+            renderCardCarousel();
+            populateMonthFilter();
+            renderHistory();
+            showToast('資料匯入成功！');
+            toggleSettingsModal();
+          } else {
+            showToast('檔案格式不符！');
+          }
+        } catch (err) {
+          showToast('匯入失敗，請檢查檔案格式！');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // 清除全部資料
+    function clearAllData() {
+      if (confirm('確定要清除所有記帳紀錄嗎？此動作無法復原！')) {
+        transactions = [];
+        saveStorage();
+        renderCardCarousel();
+        populateMonthFilter();
+        renderHistory();
+        toggleSettingsModal();
+        showToast('已清空全部資料');
+      }
+    }
+  </script>
+</body>
+</html>
