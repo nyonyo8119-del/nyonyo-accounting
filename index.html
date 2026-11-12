@@ -3,38 +3,71 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>妞妞記帳</title>
+  <title>妞妞記帳 & 周邊圖鑑</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
+    body {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
     /* iOS 滾動優化與隱藏捲軸 */
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    input[type="number"]::-webkit-inner-spin-button, 
+    input[type="number"]::-webkit-inner-spin-button,
     input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    /* 卡片微動畫 */
+    @keyframes fadeSlideUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-up {
+      animation: fadeSlideUp 0.25s ease-out forwards;
+    }
   </style>
 </head>
-<body class="bg-rose-50/40 text-slate-800 min-h-screen pb-20 font-sans antialiased selection:bg-rose-200">
+<body class="bg-rose-50/40 text-slate-800 min-h-screen pb-24 antialiased selection:bg-rose-200">
+
+  <!-- 頂部浮動 Toast 提示訊息 (取代 alert) -->
+  <div id="toast-container" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-300 opacity-0 -translate-y-2">
+    <div id="toast-box" class="bg-slate-800/95 text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 backdrop-blur-md">
+      <i id="toast-icon" class="fa-solid fa-circle-check text-rose-400"></i>
+      <span id="toast-message">操作成功</span>
+    </div>
+  </div>
 
   <!-- 頂部導覽列 -->
-  <header class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-rose-100 px-4 py-3 shadow-xs">
-    <div class="max-w-md mx-auto flex items-center justify-between">
-      <div class="flex items-center space-x-2">
-        <span class="text-2xl">🍰</span>
-        <div>
-          <h1 class="text-base font-bold text-slate-800 leading-none">妞妞記帳</h1>
-          <p class="text-[11px] text-rose-400 font-medium mt-0.5" id="today-text"></p>
+  <header class="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-rose-100 px-4 py-3 shadow-2xs">
+    <div class="max-w-md mx-auto flex items-center justify-between gap-2">
+      <div class="flex items-center space-x-2 min-w-0">
+        <span class="text-2xl shrink-0">🍰</span>
+        <div class="truncate">
+          <h1 class="text-sm sm:text-base font-bold text-slate-800 leading-none truncate">妞妞記帳 & 周邊圖鑑</h1>
+          <p class="text-[11px] text-rose-400 font-medium mt-1 truncate" id="today-text"></p>
         </div>
       </div>
-      <div class="flex items-center space-x-1">
-        <button id="btn-export-csv" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 px-2.5 py-1.5 rounded-lg border border-rose-200 font-medium transition flex items-center gap-1">
-          <i class="fa-solid fa-file-export"></i> 匯出
+
+      <!-- 動態右側功能按鈕區 (依目前分頁切換) -->
+      <div id="header-actions-accounting" class="flex items-center space-x-1.5 shrink-0">
+        <button id="btn-export-csv" type="button" class="text-xs bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-600 px-2.5 py-1.5 rounded-xl border border-rose-200 font-semibold transition flex items-center gap-1 cursor-pointer">
+          <i class="fa-solid fa-file-export"></i> 匯出 CSV
+        </button>
+      </div>
+
+      <div id="header-actions-collection" class="hidden items-center space-x-1.5 shrink-0">
+        <button id="btn-backup-menu" type="button" title="備份或還原圖鑑" class="text-xs bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-600 px-2.5 py-1.5 rounded-xl border border-slate-200 font-medium transition flex items-center gap-1 cursor-pointer">
+          <i class="fa-solid fa-cloud-arrow-down text-rose-400"></i> 備份
+        </button>
+        <button id="btn-open-add-merch" type="button" class="text-xs bg-rose-500 hover:bg-rose-600 active:scale-95 text-white px-3 py-1.5 rounded-xl shadow-xs shadow-rose-200 font-bold transition flex items-center gap-1 cursor-pointer">
+          <i class="fa-solid fa-plus"></i> 新增收藏
         </button>
       </div>
     </div>
   </header>
 
-  <main class="max-w-md mx-auto px-4 pt-3 space-y-4">
+  <!-- ==================== 分頁 1：日常記帳 ==================== -->
+  <main id="view-accounting" class="max-w-md mx-auto px-4 pt-3 space-y-4">
 
     <!-- 信用卡結帳日倒數滑動卡片 -->
     <section>
@@ -50,8 +83,8 @@
     </section>
 
     <!-- 記帳輸入卡片主體 -->
-    <section class="bg-white rounded-2xl p-4 shadow-sm border border-rose-100 space-y-4">
-      
+    <section class="bg-white rounded-2xl p-4 shadow-xs border border-rose-100 space-y-4">
+
       <!-- 交易日期與幣別 -->
       <div class="grid grid-cols-5 gap-2">
         <div class="col-span-3">
@@ -93,12 +126,12 @@
       <!-- 付款方式分頁選擇器 -->
       <div>
         <label class="block text-xs font-medium text-slate-500 mb-1">付款方式</label>
-        
-        <!-- 子分頁：現金點數 / 轉帳與支付 / 信用卡 -->
+
+        <!-- 子分頁：信用卡 / 轉帳與支付 / 現金點數 -->
         <div class="flex bg-slate-100 p-0.5 rounded-lg text-xs font-medium mb-2" id="pay-type-tabs">
-          <button type="button" data-type="credit" class="flex-1 py-1 rounded-md text-slate-800 bg-white shadow-xs font-semibold">信用卡</button>
-          <button type="button" data-type="transfer" class="flex-1 py-1 rounded-md text-slate-500 hover:text-slate-800">轉帳/支付</button>
-          <button type="button" data-type="cash" class="flex-1 py-1 rounded-md text-slate-500 hover:text-slate-800">現金/點數</button>
+          <button type="button" data-type="credit" class="flex-1 py-1 rounded-md text-slate-800 bg-white shadow-2xs font-semibold cursor-pointer">信用卡</button>
+          <button type="button" data-type="transfer" class="flex-1 py-1 rounded-md text-slate-500 hover:text-slate-800 cursor-pointer">轉帳/支付</button>
+          <button type="button" data-type="cash" class="flex-1 py-1 rounded-md text-slate-500 hover:text-slate-800 cursor-pointer">現金/點數</button>
         </div>
 
         <!-- 付款方式下拉清單 -->
@@ -128,9 +161,9 @@
           <div>
             <label class="block text-[11px] font-medium text-slate-500 mb-1">費用是誰出？</label>
             <div class="grid grid-cols-3 gap-1.5 text-xs font-medium" id="payer-buttons">
-              <button type="button" data-payer="妞凱一起" class="py-1.5 rounded-lg border border-rose-300 bg-rose-400 text-white font-semibold shadow-xs">妞凱一起 (5:5)</button>
-              <button type="button" data-payer="妞" class="py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600">妞妞自付</button>
-              <button type="button" data-payer="凱" class="py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600">凱出</button>
+              <button type="button" data-payer="妞凱一起" class="py-1.5 rounded-lg border border-rose-300 bg-rose-400 text-white font-semibold shadow-2xs cursor-pointer">妞凱一起 (5:5)</button>
+              <button type="button" data-payer="妞" class="py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 cursor-pointer">妞妞自付</button>
+              <button type="button" data-payer="凱" class="py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 cursor-pointer">凱出</button>
             </div>
           </div>
 
@@ -150,7 +183,7 @@
       </div>
 
       <!-- 送出記帳按鈕 -->
-      <button type="button" id="btn-submit" class="w-full bg-rose-500 hover:bg-rose-600 active:scale-[0.99] text-white py-3 rounded-xl font-bold shadow-md shadow-rose-200 transition text-sm flex items-center justify-center gap-2">
+      <button type="button" id="btn-submit" class="w-full bg-rose-500 hover:bg-rose-600 active:scale-[0.99] text-white py-3 rounded-xl font-bold shadow-md shadow-rose-200 transition text-sm flex items-center justify-center gap-2 cursor-pointer">
         <i class="fa-solid fa-plus"></i> 新增這筆記帳
       </button>
 
@@ -162,7 +195,7 @@
         <h2 class="text-xs font-semibold tracking-wider text-slate-500 uppercase flex items-center gap-1.5">
           <i class="fa-solid fa-receipt text-rose-400"></i> 近期紀錄 (<span id="record-count">0</span>)
         </h2>
-        <button id="btn-clear-all" class="text-[11px] text-slate-400 hover:text-rose-500 transition">清空資料</button>
+        <button id="btn-clear-all" type="button" class="text-[11px] text-slate-400 hover:text-rose-500 transition cursor-pointer">清空資料</button>
       </div>
 
       <div id="records-list" class="space-y-2">
@@ -172,8 +205,404 @@
 
   </main>
 
+  <!-- ==================== 分頁 2：周邊圖鑑 ==================== -->
+  <main id="view-collection" class="hidden max-w-md mx-auto px-4 pt-3 space-y-4">
+
+    <!-- 頂部統計儀表板 -->
+    <section class="grid grid-cols-2 gap-2.5">
+      <!-- 總收藏件數 -->
+      <div class="bg-white rounded-2xl p-3.5 border border-rose-100 shadow-2xs flex flex-col justify-between">
+        <div class="flex items-center justify-between text-slate-400 text-[11px] font-medium">
+          <span>總收藏件數</span>
+          <span class="w-6 h-6 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center">
+            <i class="fa-solid fa-layer-group text-xs"></i>
+          </span>
+        </div>
+        <div class="mt-1.5 flex items-baseline gap-1">
+          <span id="stat-total-qty" class="text-2xl font-extrabold text-slate-800">0</span>
+          <span class="text-xs text-slate-400">件 (<span id="stat-unique-count">0</span>款)</span>
+        </div>
+      </div>
+
+      <!-- 累計花費明細 (支援多幣別分列) -->
+      <div class="bg-white rounded-2xl p-3.5 border border-rose-100 shadow-2xs flex flex-col justify-between">
+        <div class="flex items-center justify-between text-slate-400 text-[11px] font-medium">
+          <span>圖鑑累計花費</span>
+          <span class="w-6 h-6 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center">
+            <i class="fa-solid fa-coins text-xs"></i>
+          </span>
+        </div>
+        <div id="stat-total-spent" class="mt-1.5 text-sm font-extrabold text-rose-600 leading-tight break-all">
+          NT$ 0
+        </div>
+      </div>
+
+      <!-- 偶像周邊數量 -->
+      <div id="card-filter-idol" class="bg-gradient-to-br from-pink-50 to-rose-50/70 rounded-2xl p-3 border border-pink-100/80 flex items-center justify-between cursor-pointer active:scale-[0.98] transition">
+        <div>
+          <span class="text-[11px] font-semibold text-pink-600 block">🎤 偶像周邊</span>
+          <span class="text-lg font-extrabold text-slate-800"><span id="stat-idol-qty">0</span> <span class="text-xs font-normal text-slate-500">件</span></span>
+        </div>
+        <i class="fa-solid fa-heart text-pink-300 text-xl"></i>
+      </div>
+
+      <!-- 二次元動漫數量 -->
+      <div id="card-filter-anime" class="bg-gradient-to-br from-sky-50 to-indigo-50/60 rounded-2xl p-3 border border-sky-100/80 flex items-center justify-between cursor-pointer active:scale-[0.98] transition">
+        <div>
+          <span class="text-[11px] font-semibold text-sky-600 block">✨ 二次元動漫</span>
+          <span class="text-lg font-extrabold text-slate-800"><span id="stat-anime-qty">0</span> <span class="text-xs font-normal text-slate-500">件</span></span>
+        </div>
+        <i class="fa-solid fa-book-open text-sky-300 text-xl"></i>
+      </div>
+    </section>
+
+    <!-- 搜尋與多重篩選列 -->
+    <section class="bg-white rounded-2xl p-3.5 border border-rose-100 shadow-2xs space-y-3">
+      <!-- 搜尋框 -->
+      <div class="relative">
+        <i class="fa-solid fa-magnifying-glass text-slate-400 text-xs absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+        <input type="text" id="merch-search" placeholder="搜尋物品名稱、團體/作品、角色、購買來源..." class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:border-rose-400 focus:bg-white transition" />
+        <button id="btn-clear-search" type="button" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
+          <i class="fa-solid fa-xmark text-xs"></i>
+        </button>
+      </div>
+
+      <!-- 圈子切換標籤 -->
+      <div class="flex bg-slate-100 p-0.5 rounded-xl text-xs font-medium" id="merch-circle-tabs">
+        <button type="button" data-circle="全部" class="flex-1 py-1.5 rounded-lg bg-white text-slate-800 font-bold shadow-2xs transition cursor-pointer">全部</button>
+        <button type="button" data-circle="偶像" class="flex-1 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 transition cursor-pointer">🎤 偶像周邊</button>
+        <button type="button" data-circle="二次元動漫" class="flex-1 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 transition cursor-pointer">✨ 二次元動漫</button>
+      </div>
+
+      <!-- 類別橫向滑動篩選標籤 -->
+      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5" id="merch-category-pills">
+        <!-- JS 自動生成 -->
+      </div>
+    </section>
+
+    <!-- 圖鑑雙欄卡片網格 (2-column Grid) -->
+    <section>
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-xs font-semibold tracking-wider text-slate-500 uppercase flex items-center gap-1.5">
+          <i class="fa-solid fa-sparkles text-rose-400"></i> 收藏清單 (<span id="merch-filtered-count">0</span>)
+        </h2>
+        <select id="merch-sort" class="text-[11px] text-slate-500 bg-transparent border-none focus:outline-none cursor-pointer font-medium">
+          <option value="newest">最新購買日期</option>
+          <option value="priceDesc">金額：高 → 低</option>
+          <option value="priceAsc">金額：低 → 高</option>
+        </select>
+      </div>
+
+      <div id="merch-grid" class="grid grid-cols-2 gap-3">
+        <!-- JS 動態生成周邊卡片 -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== 底部固定雙分頁切換列 ==================== -->
+  <nav class="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-rose-100 shadow-[0_-4px_16px_rgba(244,63,94,0.06)]">
+    <div class="max-w-md mx-auto grid grid-cols-2 h-16 px-2">
+      <button type="button" id="nav-tab-accounting" class="flex flex-col items-center justify-center gap-1 text-rose-500 font-bold transition cursor-pointer">
+        <div class="w-10 h-7 rounded-full bg-rose-100/80 flex items-center justify-center transition-all" id="nav-pill-accounting">
+          <i class="fa-solid fa-wallet text-sm"></i>
+        </div>
+        <span class="text-[11px]">日常記帳</span>
+      </button>
+
+      <button type="button" id="nav-tab-collection" class="flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-slate-600 font-medium transition cursor-pointer">
+        <div class="w-10 h-7 rounded-full bg-transparent flex items-center justify-center transition-all" id="nav-pill-collection">
+          <i class="fa-solid fa-images text-sm"></i>
+        </div>
+        <span class="text-[11px]">周邊圖鑑</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ==================== 彈窗 1：新增 / 編輯周邊收藏 ==================== -->
+  <div id="modal-merch-form" class="hidden fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-rose-100 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col animate-fade-up">
+
+      <!-- 彈窗標題列 -->
+      <div class="px-5 py-3.5 border-b border-rose-100 flex items-center justify-between bg-rose-50/40 shrink-0">
+        <h3 id="modal-merch-title" class="text-sm font-bold text-slate-800 flex items-center gap-2">
+          <span class="text-base">🎀</span> 新增周邊收藏
+        </h3>
+        <button type="button" id="btn-close-merch-modal" class="w-8 h-8 rounded-full bg-white text-slate-400 hover:text-slate-600 flex items-center justify-center shadow-2xs cursor-pointer">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- 可捲動表單區 -->
+      <form id="merch-form" class="p-4 space-y-3.5 overflow-y-auto flex-1">
+        <input type="hidden" id="merch-id" />
+
+        <!-- 圖片上傳與即時預覽 -->
+        <div class="flex items-center gap-3.5 bg-slate-50 p-3 rounded-2xl border border-dashed border-rose-200">
+          <div id="merch-image-preview-box" class="w-20 h-24 rounded-xl bg-white border border-rose-100 flex flex-col items-center justify-center overflow-hidden shrink-0 relative cursor-pointer shadow-2xs">
+            <img id="merch-image-preview" src="" alt="預覽" class="hidden w-full h-full object-cover" />
+            <div id="merch-image-placeholder" class="text-center p-1 text-rose-300">
+              <i class="fa-solid fa-camera text-xl mb-1 block"></i>
+              <span class="text-[10px] font-medium block leading-tight">拍照/選圖</span>
+            </div>
+            <div id="merch-compressing-mask" class="hidden absolute inset-0 bg-slate-900/60 text-white text-[10px] font-bold flex items-center justify-center text-center px-1">
+              壓縮處理中...
+            </div>
+          </div>
+
+          <div class="flex-1 space-y-1.5">
+            <div class="flex gap-1.5">
+              <button type="button" id="btn-trigger-upload" class="px-3 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold shadow-2xs flex items-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-image"></i> 上傳照片
+              </button>
+              <button type="button" id="btn-remove-image" class="hidden px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-rose-500 text-xs cursor-pointer">
+                清除
+              </button>
+            </div>
+            <p class="text-[11px] text-slate-400 leading-relaxed">
+              支援手機直接拍照或從相簿選圖，系統會自動最佳化壓縮不佔空間。
+            </p>
+            <input type="file" id="merch-file-input" accept="image/*" class="hidden" />
+          </div>
+        </div>
+
+        <!-- 所屬圈子選擇 -->
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">所屬圈子</label>
+          <div class="grid grid-cols-2 gap-2" id="form-circle-btns">
+            <button type="button" data-val="偶像" class="py-2 rounded-xl border border-pink-300 bg-pink-500 text-white text-xs font-bold shadow-2xs cursor-pointer">🎤 偶像周邊</button>
+            <button type="button" data-val="二次元動漫" class="py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-xs font-semibold cursor-pointer">✨ 二次元動漫</button>
+          </div>
+        </div>
+
+        <!-- 物品名稱 (必填) -->
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">物品名稱 <span class="text-rose-500">*</span></label>
+          <input type="text" id="merch-name" required placeholder="例如：PLAVE 專輯特典自拍小卡 / 芙莉蓮第13卷特裝版" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-rose-400 focus:bg-white transition" />
+        </div>
+
+        <!-- 類別大項 & 收藏狀態 -->
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">類別大項</label>
+            <select id="merch-category" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-rose-400 focus:bg-white">
+              <option value="小卡/拍立得">小卡/拍立得</option>
+              <option value="漫畫/輕小說">漫畫/輕小說</option>
+              <option value="徽章/壓克力">徽章/壓克力</option>
+              <option value="應援/其他">應援/其他</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">收藏狀態</label>
+            <select id="merch-status" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-rose-400 focus:bg-white">
+              <option value="已入手">✅ 已入手</option>
+              <option value="運送中">🚚 運送中</option>
+              <option value="預購待發貨">⏳ 預購待發貨</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 作品/團體 & 角色/成員 -->
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">作品 / 團體</label>
+            <input type="text" id="merch-series" placeholder="如：PLAVE、IVE、咒術" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-rose-400 focus:bg-white" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">角色 / 成員</label>
+            <input type="text" id="merch-character" placeholder="如：藝俊、員瑛、五條悟" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-rose-400 focus:bg-white" />
+          </div>
+        </div>
+
+        <!-- 數量、幣別、單價金額 -->
+        <div class="grid grid-cols-12 gap-2">
+          <div class="col-span-3">
+            <label class="block text-xs font-medium text-slate-500 mb-1">數量</label>
+            <input type="number" id="merch-qty" min="1" value="1" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-center text-slate-700 focus:outline-none focus:border-rose-400 focus:bg-white" />
+          </div>
+          <div class="col-span-4">
+            <label class="block text-xs font-medium text-slate-500 mb-1">幣別</label>
+            <select id="merch-currency" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-rose-400 focus:bg-white">
+              <option value="TWD" selected>TWD (NT$)</option>
+              <option value="KRW">KRW (₩)</option>
+              <option value="JPY">JPY (¥)</option>
+              <option value="USD">USD ($)</option>
+              <option value="CNY">CNY (¥)</option>
+              <option value="HKD">HKD (HK$)</option>
+            </select>
+          </div>
+          <div class="col-span-5">
+            <label class="block text-xs font-medium text-slate-500 mb-1">單價金額</label>
+            <input type="number" id="merch-price" min="0" step="any" placeholder="0" inputmode="decimal" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:border-rose-400 focus:bg-white" />
+          </div>
+        </div>
+
+        <!-- 購買日期 & 購買來源 -->
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">購買日期</label>
+            <input type="date" id="merch-date" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-700 focus:outline-none focus:border-rose-400 focus:bg-white" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">購買來源 / 管道</label>
+            <input type="text" id="merch-source" placeholder="如：Weverse、社團收卡、煤爐" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-rose-400 focus:bg-white" />
+          </div>
+        </div>
+
+        <!-- 收納位置與備註 -->
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">收納位置與備註</label>
+          <input type="text" id="merch-notes" placeholder="例如：A5 卡冊第 3 頁、對光無損、含特典明信片" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-rose-400 focus:bg-white" />
+        </div>
+
+        <!-- 🔥 核心連動區塊：同時新增記帳紀錄 (新增模式顯示) -->
+        <div id="sync-accounting-wrapper" class="bg-rose-50/80 border border-rose-200/80 rounded-2xl p-3 space-y-2.5">
+          <label class="flex items-start gap-2.5 cursor-pointer select-none">
+            <input type="checkbox" id="merch-sync-accounting" checked class="mt-0.5 w-4 h-4 rounded text-rose-500 focus:ring-rose-400 border-rose-300 cursor-pointer" />
+            <div class="text-xs">
+              <span class="font-bold text-rose-700 block">🎀 同時新增一筆記帳紀錄</span>
+              <span class="text-[11px] text-rose-500/90">自動計算「單價 × 數量」並寫入日常記帳明細</span>
+            </div>
+          </label>
+
+          <!-- 連動記帳細節選項 -->
+          <div id="sync-accounting-details" class="pt-2 border-t border-rose-200/60 space-y-2">
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-medium text-slate-600 mb-1">記帳支出類別 (智慧對應)</label>
+                <select id="sync-category" class="w-full bg-white border border-rose-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none">
+                  <!-- JS 動態填入 17 項專屬支出類別 -->
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-slate-600 mb-1">付款類別</label>
+                <select id="sync-pay-type" class="w-full bg-white border border-rose-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none">
+                  <option value="credit" selected>信用卡</option>
+                  <option value="transfer">轉帳 / 支付</option>
+                  <option value="cash">現金 / 點數</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-medium text-slate-600 mb-1">付款方式明細</label>
+              <select id="sync-payment" class="w-full bg-white border border-rose-200 rounded-xl px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none">
+                <!-- JS 動態填入與日常記帳相同的卡片/支付方式 -->
+              </select>
+            </div>
+
+            <div class="flex items-center justify-between text-[11px] text-rose-600 bg-white/80 px-2.5 py-1.5 rounded-lg">
+              <span>預計同步記帳總額：</span>
+              <span id="sync-preview-total" class="font-extrabold">NT$ 0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 送出按鈕 -->
+        <div class="pt-1">
+          <button type="submit" class="w-full bg-rose-500 hover:bg-rose-600 active:scale-[0.99] text-white py-3 rounded-xl font-bold shadow-md shadow-rose-200 transition text-sm flex items-center justify-center gap-1.5 cursor-pointer">
+            <i class="fa-solid fa-check"></i> <span id="btn-save-merch-text">儲存收藏</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== 彈窗 2：周邊詳情大圖檢視 (Lightbox) ==================== -->
+  <div id="modal-merch-detail" class="hidden fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl border border-rose-100 animate-fade-up">
+      <div class="relative bg-slate-100 aspect-[4/4.3] flex items-center justify-center overflow-hidden">
+        <img id="detail-image" src="" alt="大圖" class="w-full h-full object-contain" />
+        <button type="button" id="btn-close-detail" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <span id="detail-status-badge" class="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[11px] font-bold shadow-xs"></span>
+      </div>
+
+      <div class="p-4 space-y-3">
+        <div>
+          <div class="flex items-center gap-1.5 mb-1">
+            <span id="detail-circle-tag" class="text-[10px] font-bold px-2 py-0.5 rounded-md"></span>
+            <span id="detail-cat-tag" class="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600"></span>
+          </div>
+          <p id="detail-series-char" class="text-xs font-bold text-rose-500"></p>
+          <h3 id="detail-name" class="text-base font-extrabold text-slate-800 mt-0.5"></h3>
+        </div>
+
+        <div class="bg-rose-50/50 rounded-2xl p-3 space-y-1.5 text-xs border border-rose-100/80">
+          <div class="flex justify-between">
+            <span class="text-slate-400">數量與金額</span>
+            <span id="detail-price-qty" class="font-extrabold text-rose-600"></span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">購買來源</span>
+            <span id="detail-source" class="font-medium text-slate-700"></span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">購買日期</span>
+            <span id="detail-date" class="text-slate-700 font-mono"></span>
+          </div>
+        </div>
+
+        <p id="detail-notes" class="text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl leading-relaxed"></p>
+
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <button type="button" id="btn-detail-delete" class="py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+            <i class="fa-solid fa-trash-can"></i> 刪除收藏
+          </button>
+          <button type="button" id="btn-detail-edit" class="py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+            <i class="fa-solid fa-pen-to-square"></i> 編輯明細
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 彈窗 3：圖鑑備份與還原視窗 ==================== -->
+  <div id="modal-backup" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-xs rounded-3xl p-5 shadow-2xl border border-rose-100 space-y-4 animate-fade-up">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+          <i class="fa-solid fa-shield-heart text-rose-400"></i> 圖鑑資料備份與還原
+        </h3>
+        <button type="button" id="btn-close-backup" class="text-slate-400 hover:text-slate-600">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <p class="text-xs text-slate-500 leading-relaxed">
+        圖鑑照片與明細皆儲存在瀏覽器本機空間。建議定期匯出 JSON 備份檔保存，換手機時也可一鍵匯入還原！
+      </p>
+      <div class="space-y-2">
+        <button type="button" id="btn-export-merch-json" class="w-full py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs cursor-pointer">
+          <i class="fa-solid fa-download"></i> 下載圖鑑備份檔 (.json)
+        </button>
+        <button type="button" id="btn-trigger-import-json" class="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer">
+          <i class="fa-solid fa-upload"></i> 從備份檔匯入還原
+        </button>
+        <input type="file" id="input-import-json" accept=".json" class="hidden" />
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 彈窗 4：通用確認對話框 (取代 confirm) ==================== -->
+  <div id="modal-confirm" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-xs rounded-3xl p-5 shadow-2xl border border-rose-100 space-y-4 animate-fade-up">
+      <h3 id="confirm-title" class="text-sm font-bold text-slate-800">確定要執行嗎？</h3>
+      <p id="confirm-desc" class="text-xs text-slate-500 leading-relaxed"></p>
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" id="btn-confirm-cancel" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-semibold cursor-pointer">取消</button>
+        <button type="button" id="btn-confirm-ok" class="px-4 py-2 rounded-xl bg-rose-500 text-white text-xs font-bold cursor-pointer">確定</button>
+      </div>
+    </div>
+  </div>
+
   <script>
-    // 1. 付款方式與結帳日設定（已加入 WOWPASS 與 Toss Pay）
+    // =========================================================================
+    // 1. 共用常數與資料庫鍵值設定 (100% 保留原有 nyonyo_accounting_records)
+    // =========================================================================
+    const ACCOUNTING_STORAGE_KEY = 'nyonyo_accounting_records';
+    const COLLECTION_STORAGE_KEY = 'nyonyo_collection_records';
+
     const PAYMENT_DATA = {
       credit: [
         { id: 'cathay_cube', name: '國泰 CUBE 卡', bank: '國泰', billingDay: 7 },
@@ -204,17 +633,28 @@
       ]
     };
 
-    // 2. 支出類別列表
+    // 完全依照影片清單順序收錄的 17 項專屬支出類別
     const CATEGORIES = [
-      { id: 'food', name: '飲食餐飲', icon: 'utensils' },
-      { id: 'grocery', name: '超市食材', icon: 'basket-shopping' },
-      { id: 'daily', name: '日常居家', icon: 'house' },
-      { id: 'transport', name: '交通加油', icon: 'bus' },
-      { id: 'shopping', name: '購物治裝', icon: 'bag-shopping' },
-      { id: 'entertainment', name: '休閒娛樂', icon: 'film' },
-      { id: 'fixed', name: '固定帳單', icon: 'file-invoice-dollar' },
-      { id: 'other', name: '其他支出', icon: 'ellipsis' }
+      { id: 'food', name: '飲食', icon: 'utensils' },
+      { id: 'household', name: '家用品(含買菜等)', icon: 'basket-shopping' },
+      { id: 'soybean_flour', name: '黃豆粉相關', icon: 'paw' },
+      { id: 'entertainment', name: '娛樂', icon: 'film' },
+      { id: 'body_care', name: '身體保養', icon: 'spa' },
+      { id: 'transport', name: '交通', icon: 'bus' },
+      { id: 'travel', name: '旅遊', icon: 'plane-departure' },
+      { id: 'medical', name: '醫療', icon: 'kit-medical' },
+      { id: 'learning', name: '學習', icon: 'graduation-cap' },
+      { id: 'insurance', name: '保險', icon: 'shield-halved' },
+      { id: 'idol_plave', name: '追星-PLAVE', icon: 'star' },
+      { id: 'idol_shinee', name: '追星-SHINee', icon: 'gem' },
+      { id: 'bomtoon', name: 'Bomtoon', icon: 'book-open-reader' },
+      { id: 'bookwalker', name: 'BookWalker', icon: 'book' },
+      { id: 'dlsite', name: 'DLSite', icon: 'headphones' },
+      { id: 'anime_merch', name: '動漫周邊', icon: 'wand-magic-sparkles' },
+      { id: 'shipping', name: '運費', icon: 'truck-fast' }
     ];
+
+    const MERCH_CATEGORIES = ['全部', '小卡/拍立得', '漫畫/輕小說', '徽章/壓克力', '應援/其他'];
 
     const CURRENCY_SYMBOLS = {
       TWD: 'NT$',
@@ -227,31 +667,239 @@
       GBP: '£'
     };
 
-    let state = {
-      selectedCategory: CATEGORIES[0].name,
-      currentPayType: 'credit',
-      payer: '妞凱一起',
-      records: JSON.parse(localStorage.getItem('nyonyo_accounting_records') || '[]')
-    };
+    // 可愛預設 SVG 圖卡生成器（無上傳圖片時顯示）
+    function createDefaultMerchSVG(circle, title, sub) {
+      const isIdol = circle === '偶像';
+      const c1 = isIdol ? '#fb7185' : '#38bdf8';
+      const c2 = isIdol ? '#f472b6' : '#818cf8';
+      const emoji = isIdol ? '🎤' : '✨';
+      const safeTitle = (title || '我的收藏').slice(0, 12).replace(/[<>&'"]/g, '');
+      const safeSub = (sub || circle).slice(0, 14).replace(/[<>&'"]/g, '');
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="360" viewBox="0 0 320 360">
+        <defs>
+          <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="${c1}"/>
+            <stop offset="100%" stop-color="${c2}"/>
+          </linearGradient>
+        </defs>
+        <rect width="320" height="360" fill="url(#g)" rx="20"/>
+        <rect x="16" y="16" width="288" height="328" rx="14" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2" stroke-dasharray="5 4"/>
+        <circle cx="160" cy="145" r="46" fill="rgba(255,255,255,0.25)"/>
+        <text x="160" y="160" font-size="38" text-anchor="middle">${emoji}</text>
+        <text x="160" y="232" font-family="sans-serif" font-weight="bold" font-size="18" text-anchor="middle" fill="#ffffff">${safeTitle}</text>
+        <text x="160" y="258" font-family="sans-serif" font-size="13" text-anchor="middle" fill="rgba(255,255,255,0.9)">${safeSub}</text>
+      </svg>`;
+      return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    }
 
-    // 初始化網頁元件
-    document.addEventListener('DOMContentLoaded', () => {
-      // 填入今日日期
+    // 初次開啟時的範例圖鑑（僅當從未建立過圖鑑資料時載入）
+    function getInitialCollectionSample() {
+      const todayStr = getTodayISO();
+      return [
+        {
+          id: 'sample-1',
+          circle: '偶像',
+          category: '小卡/拍立得',
+          name: 'ASTERUM : 134-1 專輯特典自拍卡',
+          series: 'PLAVE',
+          character: '藝俊 Yejun',
+          quantity: 1,
+          currency: 'TWD',
+          price: 420,
+          date: todayStr,
+          source: '社團收卡',
+          status: '已入手',
+          notes: '已套雙層卡膜放 A5 卡冊第 1 頁，對光無瑕',
+          image: ''
+        },
+        {
+          id: 'sample-2',
+          circle: '二次元動漫',
+          category: '漫畫/輕小說',
+          name: '《葬送的芙莉蓮》第13卷 特裝版',
+          series: '葬送的芙莉蓮',
+          character: '芙莉蓮',
+          quantity: 1,
+          currency: 'TWD',
+          price: 380,
+          date: todayStr,
+          source: '安利美特',
+          status: '已入手',
+          notes: '附首刷特典明信片組，書櫃第二層保存',
+          image: ''
+        }
+      ];
+    }
+
+    function getTodayISO() {
       const today = new Date();
       const yyyy = today.getFullYear();
       const mm = String(today.getMonth() + 1).padStart(2, '0');
       const dd = String(today.getDate()).padStart(2, '0');
-      document.getElementById('input-date').value = `${yyyy}-${mm}-${dd}`;
-      document.getElementById('today-text').textContent = `${yyyy}/${mm}/${dd} 今日記帳`;
+      return `${yyyy}-${mm}-${dd}`;
+    }
 
+    // =========================================================================
+    // 2. 應用程式全域狀態
+    // =========================================================================
+    let state = {
+      activeTab: 'accounting', // 'accounting' | 'collection'
+      // 記帳狀態
+      selectedCategory: CATEGORIES[0].name,
+      currentPayType: 'credit',
+      payer: '妞凱一起',
+      records: JSON.parse(localStorage.getItem(ACCOUNTING_STORAGE_KEY) || '[]'),
+      // 圖鑑狀態
+      collections: [],
+      merchFilterCircle: '全部',
+      merchFilterCategory: '全部',
+      merchSearch: '',
+      merchSort: 'newest',
+      formCircle: '偶像',
+      formImageBase64: '',
+      currentDetailId: null
+    };
+
+    // 載入圖鑑資料
+    function loadCollections() {
+      const raw = localStorage.getItem(COLLECTION_STORAGE_KEY);
+      if (raw === null) {
+        state.collections = getInitialCollectionSample();
+        saveCollections();
+      } else {
+        try {
+          state.collections = JSON.parse(raw) || [];
+        } catch (e) {
+          state.collections = [];
+        }
+      }
+    }
+
+    function saveCollections() {
+      try {
+        localStorage.setItem(COLLECTION_STORAGE_KEY, JSON.stringify(state.collections));
+        return true;
+      } catch (e) {
+        showToast('瀏覽器儲存空間已滿！建議先點擊「備份」下載 JSON 檔案', 'error');
+        return false;
+      }
+    }
+
+    function saveAccountingRecords() {
+      localStorage.setItem(ACCOUNTING_STORAGE_KEY, JSON.stringify(state.records));
+    }
+
+    // =========================================================================
+    // 3. 輕量提示框 & 確認框工具 (取代原生 alert / confirm)
+    // =========================================================================
+    let toastTimer = null;
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const icon = document.getElementById('toast-icon');
+      const msgEl = document.getElementById('toast-message');
+
+      msgEl.textContent = message;
+      if (type === 'error') {
+        icon.className = 'fa-solid fa-circle-exclamation text-amber-400';
+      } else {
+        icon.className = 'fa-solid fa-circle-check text-rose-400';
+      }
+
+      container.classList.remove('opacity-0', '-translate-y-2');
+      container.classList.add('opacity-100', 'translate-y-0');
+
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        container.classList.remove('opacity-100', 'translate-y-0');
+        container.classList.add('opacity-0', '-translate-y-2');
+      }, 2800);
+    }
+
+    let confirmCallback = null;
+    function openConfirmModal(title, desc, onConfirm) {
+      document.getElementById('confirm-title').textContent = title;
+      document.getElementById('confirm-desc').textContent = desc;
+      confirmCallback = onConfirm;
+      document.getElementById('modal-confirm').classList.remove('hidden');
+    }
+
+    // =========================================================================
+    // 4. 初始化入口
+    // =========================================================================
+    document.addEventListener('DOMContentLoaded', () => {
+      const todayISO = getTodayISO();
+      const [yyyy, mm, dd] = todayISO.split('-');
+      document.getElementById('input-date').value = todayISO;
+      document.getElementById('merch-date').value = todayISO;
+      document.getElementById('today-text').textContent = `${yyyy}/${mm}/${dd} 今日生活與收藏`;
+
+      loadCollections();
+
+      // 渲染記帳區塊
       renderBillingCards();
       renderCategoryGrid();
       populatePaymentOptions('credit');
       renderRecords();
-      setupEventListeners();
+
+      // 渲染圖鑑區塊
+      renderMerchCategoryPills();
+      populateSyncCategoryOptions();
+      populateSyncPaymentOptions('credit');
+      renderCollections();
+
+      // 綁定所有事件
+      setupAccountingEvents();
+      setupNavigationAndCollectionEvents();
     });
 
-    // 渲染各信用卡結帳日倒數卡片
+    // =========================================================================
+    // 5. 底部雙分頁切換邏輯
+    // =========================================================================
+    function switchMainTab(tab) {
+      state.activeTab = tab;
+      const viewAcc = document.getElementById('view-accounting');
+      const viewCol = document.getElementById('view-collection');
+      const headAcc = document.getElementById('header-actions-accounting');
+      const headCol = document.getElementById('header-actions-collection');
+
+      const navAcc = document.getElementById('nav-tab-accounting');
+      const navCol = document.getElementById('nav-tab-collection');
+      const pillAcc = document.getElementById('nav-pill-accounting');
+      const pillCol = document.getElementById('nav-pill-collection');
+
+      if (tab === 'accounting') {
+        viewAcc.classList.remove('hidden');
+        viewCol.classList.add('hidden');
+        headAcc.classList.remove('hidden');
+        headAcc.classList.add('flex');
+        headCol.classList.add('hidden');
+        headCol.classList.remove('flex');
+
+        navAcc.className = 'flex flex-col items-center justify-center gap-1 text-rose-500 font-bold transition cursor-pointer';
+        pillAcc.className = 'w-10 h-7 rounded-full bg-rose-100/80 flex items-center justify-center transition-all';
+        navCol.className = 'flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-slate-600 font-medium transition cursor-pointer';
+        pillCol.className = 'w-10 h-7 rounded-full bg-transparent flex items-center justify-center transition-all';
+        renderRecords();
+      } else {
+        viewAcc.classList.add('hidden');
+        viewCol.classList.remove('hidden');
+        headAcc.classList.add('hidden');
+        headAcc.classList.remove('flex');
+        headCol.classList.remove('hidden');
+        headCol.classList.add('flex');
+
+        navCol.className = 'flex flex-col items-center justify-center gap-1 text-rose-500 font-bold transition cursor-pointer';
+        pillCol.className = 'w-10 h-7 rounded-full bg-rose-100/80 flex items-center justify-center transition-all';
+        navAcc.className = 'flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-slate-600 font-medium transition cursor-pointer';
+        pillAcc.className = 'w-10 h-7 rounded-full bg-transparent flex items-center justify-center transition-all';
+        renderCollections();
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // =========================================================================
+    // 6. 「日常記帳」完整邏輯 (保留所有功能與細節)
+    // =========================================================================
     function renderBillingCards() {
       const container = document.getElementById('billing-cards');
       container.innerHTML = '';
@@ -270,11 +918,9 @@
 
       banks.forEach(b => {
         let diff = b.day - todayDay;
-        let isPast = false;
         if (diff < 0) {
           const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, b.day);
           diff = Math.ceil((nextMonthDate - now) / (1000 * 60 * 60 * 24));
-          isPast = true;
         }
 
         const isUrgent = diff <= 3;
@@ -282,7 +928,7 @@
         cardEl.className = `min-w-[130px] p-2.5 rounded-xl border flex flex-col justify-between shrink-0 shadow-2xs ${
           isUrgent ? 'bg-rose-50/90 border-rose-200 text-rose-900' : 'bg-white border-slate-200/70 text-slate-700'
         }`;
-        
+
         cardEl.innerHTML = `
           <div class="flex items-center justify-between">
             <span class="font-bold text-xs">${b.name} (${b.day}號)</span>
@@ -296,7 +942,6 @@
       });
     }
 
-    // 渲染分類按鈕
     function renderCategoryGrid() {
       const grid = document.getElementById('category-grid');
       grid.innerHTML = '';
@@ -304,12 +949,12 @@
         const btn = document.createElement('button');
         btn.type = 'button';
         const isSelected = state.selectedCategory === cat.name;
-        btn.className = `py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-1 transition ${
-          isSelected 
-            ? 'bg-rose-400 text-white font-semibold shadow-xs shadow-rose-200' 
+        btn.className = `py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer min-h-[54px] ${
+          isSelected
+            ? 'bg-rose-400 text-white font-semibold shadow-2xs shadow-rose-200'
             : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
         }`;
-        btn.innerHTML = `<i class="fa-solid fa-${cat.icon} text-sm"></i><span class="scale-90">${cat.name}</span>`;
+        btn.innerHTML = `<i class="fa-solid fa-${cat.icon} text-sm"></i><span class="text-[10px] leading-tight text-center line-clamp-1 px-0.5">${cat.name}</span>`;
         btn.onclick = () => {
           state.selectedCategory = cat.name;
           renderCategoryGrid();
@@ -318,7 +963,6 @@
       });
     }
 
-    // 填入付款方式下拉清單
     function populatePaymentOptions(type) {
       const select = document.getElementById('input-payment');
       select.innerHTML = '';
@@ -333,7 +977,6 @@
       updateBillingCycleHint();
     }
 
-    // 帳單週期試算提示
     function updateBillingCycleHint() {
       const select = document.getElementById('input-payment');
       const hintBox = document.getElementById('billing-cycle-hint');
@@ -346,7 +989,7 @@
         const transDate = new Date(dateVal);
         const day = transDate.getDate();
         const month = transDate.getMonth() + 1;
-        
+
         let cycleMonth;
         let cycleYear = transDate.getFullYear();
         if (day <= parseInt(billingDay, 10)) {
@@ -365,7 +1008,6 @@
       }
     }
 
-    // 自動試算拆帳
     function calculateSplitAmount() {
       const total = parseFloat(document.getElementById('input-amount').value) || 0;
       const actualInput = document.getElementById('split-actual-amount');
@@ -378,23 +1020,21 @@
       }
     }
 
-    // 綁定事件監聽器
-    function setupEventListeners() {
+    function setupAccountingEvents() {
       // 幣別切換
-      const currencySelect = document.getElementById('input-currency');
-      currencySelect.addEventListener('change', (e) => {
+      document.getElementById('input-currency').addEventListener('change', (e) => {
         const cur = e.target.value;
         document.getElementById('currency-symbol').textContent = CURRENCY_SYMBOLS[cur] || cur;
       });
 
-      // 付款方式分頁按鈕切換
+      // 付款方式分頁切換
       const tabBtns = document.querySelectorAll('#pay-type-tabs button');
       tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
           tabBtns.forEach(b => {
-            b.className = 'flex-1 py-1 rounded-md text-slate-500 hover:text-slate-800';
+            b.className = 'flex-1 py-1 rounded-md text-slate-500 hover:text-slate-800 cursor-pointer';
           });
-          btn.className = 'flex-1 py-1 rounded-md text-slate-800 bg-white shadow-xs font-semibold';
+          btn.className = 'flex-1 py-1 rounded-md text-slate-800 bg-white shadow-2xs font-semibold cursor-pointer';
           state.currentPayType = btn.dataset.type;
           populatePaymentOptions(state.currentPayType);
         });
@@ -420,24 +1060,24 @@
       payerBtns.forEach(btn => {
         btn.addEventListener('click', () => {
           payerBtns.forEach(b => {
-            b.className = 'py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600';
+            b.className = 'py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 cursor-pointer';
           });
-          btn.className = 'py-1.5 rounded-lg border border-rose-300 bg-rose-400 text-white font-semibold shadow-xs';
+          btn.className = 'py-1.5 rounded-lg border border-rose-300 bg-rose-400 text-white font-semibold shadow-2xs cursor-pointer';
           state.payer = btn.dataset.payer;
           calculateSplitAmount();
         });
       });
 
-      // 金額輸入聯動拆帳
+      // 金額聯動試算
       document.getElementById('input-amount').addEventListener('input', () => {
         if (splitToggle.checked) calculateSplitAmount();
       });
 
-      // 新增記帳
+      // 送出記帳
       document.getElementById('btn-submit').addEventListener('click', () => {
         const amount = parseFloat(document.getElementById('input-amount').value);
         if (!amount || amount <= 0) {
-          alert('請輸入有效的支出金額！');
+          showToast('請輸入有效的支出金額！', 'error');
           return;
         }
 
@@ -462,28 +1102,33 @@
         };
 
         state.records.unshift(newRecord);
-        localStorage.setItem('nyonyo_accounting_records', JSON.stringify(state.records));
+        saveAccountingRecords();
 
-        // 重設表單
         document.getElementById('input-amount').value = '';
         document.getElementById('input-note').value = '';
         renderRecords();
+        showToast('已成功新增這筆記帳！');
       });
 
-      // 清空所有紀錄
+      // 清空資料
       document.getElementById('btn-clear-all').addEventListener('click', () => {
-        if (confirm('確定要清空所有已記錄的帳目嗎？（清空前可先匯出備份）')) {
-          state.records = [];
-          localStorage.removeItem('nyonyo_accounting_records');
-          renderRecords();
-        }
+        if (state.records.length === 0) return;
+        openConfirmModal(
+          '確定清空所有記帳資料？',
+          '清空後無法復原，建議先點擊右上角「匯出 CSV」備份檔案。',
+          () => {
+            state.records = [];
+            localStorage.removeItem(ACCOUNTING_STORAGE_KEY);
+            renderRecords();
+            showToast('已清空所有記帳紀錄');
+          }
+        );
       });
 
       // 匯出 CSV
       document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
     }
 
-    // 渲染近期清單
     function renderRecords() {
       const container = document.getElementById('records-list');
       const countEl = document.getElementById('record-count');
@@ -492,57 +1137,739 @@
 
       if (state.records.length === 0) {
         container.innerHTML = `
-          <div class="text-center py-8 text-slate-400 text-xs bg-white rounded-xl border border-dashed border-slate-200">
+          <div class="text-center py-8 text-slate-400 text-xs bg-white rounded-2xl border border-dashed border-slate-200">
             目前尚無記帳紀錄，點擊上方按鈕開始記帳吧！
           </div>
         `;
         return;
       }
 
-      state.records.slice(0, 20).forEach(rec => {
+      state.records.slice(0, 30).forEach(rec => {
         const item = document.createElement('div');
-        item.className = 'bg-white p-3 rounded-xl border border-rose-50 shadow-2xs flex items-center justify-between text-xs';
-        
+        item.className = 'bg-white p-3 rounded-2xl border border-rose-50 shadow-2xs flex items-center justify-between text-xs gap-2';
+
         const symbol = CURRENCY_SYMBOLS[rec.currency] || rec.currency;
+        const isFromMerch = rec.fromMerch || (rec.note && rec.note.startsWith('[周邊]'));
+
         item.innerHTML = `
-          <div class="space-y-0.5">
-            <div class="flex items-center gap-1.5">
+          <div class="space-y-1 min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 flex-wrap">
               <span class="font-bold text-slate-800">${rec.category}</span>
               <span class="text-[10px] text-slate-400 font-mono">${rec.date}</span>
-              <span class="text-[10px] bg-slate-100 text-slate-600 px-1 rounded">${rec.currency}</span>
-              ${rec.isSplit ? `<span class="text-[10px] bg-rose-50 text-rose-500 font-medium px-1 rounded border border-rose-100">拆帳: ${rec.payer}</span>` : ''}
+              <span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded">${rec.currency}</span>
+              ${rec.isSplit ? `<span class="text-[10px] bg-rose-50 text-rose-500 font-medium px-1.5 rounded border border-rose-100">拆帳: ${rec.payer}</span>` : ''}
+              ${isFromMerch ? `<span class="text-[10px] bg-pink-50 text-pink-600 font-semibold px-1.5 rounded border border-pink-200/80">🎀 周邊連動</span>` : ''}
             </div>
-            <div class="text-[11px] text-slate-400">
+            <div class="text-[11px] text-slate-400 truncate">
               ${rec.payment} ${rec.note ? `· ${rec.note}` : ''}
             </div>
           </div>
-          <div class="text-right">
-            <div class="font-bold text-sm text-slate-800">${symbol} ${rec.amount.toLocaleString()}</div>
-            ${rec.isSplit ? `<div class="text-[10px] text-rose-400">妞付: ${symbol} ${rec.actualAmount.toLocaleString()}</div>` : ''}
+          <div class="text-right shrink-0">
+            <div class="font-bold text-sm text-slate-800">${symbol} ${Number(rec.amount).toLocaleString()}</div>
+            ${rec.isSplit ? `<div class="text-[10px] text-rose-400">妞付: ${symbol} ${Number(rec.actualAmount).toLocaleString()}</div>` : ''}
           </div>
         `;
         container.appendChild(item);
       });
     }
 
-    // 匯出 CSV 檔
     function exportCSV() {
       if (state.records.length === 0) {
-        alert('目前沒有紀錄可以匯出！');
+        showToast('目前沒有記帳紀錄可以匯出！', 'error');
         return;
       }
       let csvContent = '\uFEFF交易日期,幣別,支出類別,總金額,付款方式,是否拆帳,費用誰出,妞實際付款金額,備註\n';
       state.records.forEach(r => {
-        csvContent += `"${r.date}","${r.currency}","${r.category}",${r.amount},"${r.payment}","${r.isSplit ? '是' : '否'}","${r.payer}",${r.actualAmount},"${r.note || ''}"\n`;
+        const cleanNote = (r.note || '').replace(/"/g, '""');
+        csvContent += `"${r.date}","${r.currency}","${r.category}",${r.amount},"${r.payment}","${r.isSplit ? '是' : '否'}","${r.payer}",${r.actualAmount},"${cleanNote}"\n`;
       });
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
-      link.setAttribute('download', `妞妞記帳明細_${new Date().toISOString().slice(0,10)}.csv`);
+      link.setAttribute('download', `妞妞記帳明細_${getTodayISO()}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('CSV 記帳明細已匯出！');
+    }
+
+    // =========================================================================
+    // 7. 「周邊圖鑑」完整邏輯與「買周邊自動連動記帳」
+    // =========================================================================
+    function renderMerchCategoryPills() {
+      const container = document.getElementById('merch-category-pills');
+      container.innerHTML = '';
+      MERCH_CATEGORIES.forEach(cat => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const active = state.merchFilterCategory === cat;
+        btn.className = `px-3 py-1 rounded-full text-[11px] font-semibold shrink-0 transition cursor-pointer ${
+          active
+            ? 'bg-rose-500 text-white shadow-2xs'
+            : 'bg-slate-50 text-slate-600 border border-slate-200/80 hover:bg-rose-50'
+        }`;
+        btn.textContent = cat;
+        btn.onclick = () => {
+          state.merchFilterCategory = cat;
+          renderMerchCategoryPills();
+          renderCollections();
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    // 填入連動記帳的 17 項專屬支出類別下拉選單
+    function populateSyncCategoryOptions() {
+      const select = document.getElementById('sync-category');
+      if (!select) return;
+      select.innerHTML = '';
+      CATEGORIES.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat.name;
+        opt.textContent = cat.name;
+        if (cat.name === '追星-PLAVE') opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    // 智慧推測周邊對應的記帳支出類別 (依所屬圈子、團體/作品、購買來源/名稱自動判斷)
+    function autoDetectSyncCategory() {
+      const syncSelect = document.getElementById('sync-category');
+      if (!syncSelect) return;
+
+      const name = (document.getElementById('merch-name').value || '').toLowerCase();
+      const series = (document.getElementById('merch-series').value || '').toLowerCase();
+      const source = (document.getElementById('merch-source').value || '').toLowerCase();
+      const combined = `${name} ${series} ${source}`;
+
+      if (combined.includes('plave')) {
+        syncSelect.value = '追星-PLAVE';
+      } else if (combined.includes('shinee')) {
+        syncSelect.value = '追星-SHINee';
+      } else if (combined.includes('bomtoon')) {
+        syncSelect.value = 'Bomtoon';
+      } else if (combined.includes('bookwalker')) {
+        syncSelect.value = 'BookWalker';
+      } else if (combined.includes('dlsite')) {
+        syncSelect.value = 'DLSite';
+      } else if (state.formCircle === '二次元動漫') {
+        syncSelect.value = '動漫周邊';
+      } else {
+        syncSelect.value = '追星-PLAVE';
+      }
+    }
+
+    // 連動記帳區塊的付款方式下拉選單
+    function populateSyncPaymentOptions(payType) {
+      const select = document.getElementById('sync-payment');
+      select.innerHTML = '';
+      const list = PAYMENT_DATA[payType] || [];
+      list.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item.name;
+        opt.textContent = item.billingDay ? `${item.name} (${item.billingDay}日結帳)` : item.name;
+        select.appendChild(opt);
+      });
+    }
+
+    function updateSyncPreviewTotal() {
+      const qty = Math.max(1, parseInt(document.getElementById('merch-qty').value, 10) || 1);
+      const price = parseFloat(document.getElementById('merch-price').value) || 0;
+      const cur = document.getElementById('merch-currency').value;
+      const sym = CURRENCY_SYMBOLS[cur] || cur;
+      const total = qty * price;
+      document.getElementById('sync-preview-total').textContent = `${sym} ${total.toLocaleString()}`;
+    }
+
+    // 圖片上傳與 Canvas 自動壓縮 (最大寬度 560px, JPEG 0.78 品質)
+    function handleMerchImageFile(file) {
+      if (!file || !file.type.startsWith('image/')) {
+        showToast('請選擇有效的圖片檔案', 'error');
+        return;
+      }
+      const mask = document.getElementById('merch-compressing-mask');
+      mask.classList.remove('hidden');
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 560;
+          let w = img.width;
+          let h = img.height;
+          if (w > MAX_WIDTH) {
+            h = Math.round((h * MAX_WIDTH) / w);
+            w = MAX_WIDTH;
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+
+          const compressed = canvas.toDataURL('image/jpeg', 0.78);
+          state.formImageBase64 = compressed;
+          setFormImagePreview(compressed);
+          mask.classList.add('hidden');
+          showToast('照片已自動壓縮並載入！');
+        };
+        img.onerror = () => {
+          mask.classList.add('hidden');
+          showToast('圖片讀取失敗，請重試', 'error');
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function setFormImagePreview(src) {
+      const preview = document.getElementById('merch-image-preview');
+      const placeholder = document.getElementById('merch-image-placeholder');
+      const removeBtn = document.getElementById('btn-remove-image');
+      if (src) {
+        preview.src = src;
+        preview.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+        removeBtn.classList.remove('hidden');
+      } else {
+        preview.src = '';
+        preview.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+        removeBtn.classList.add('hidden');
+      }
+    }
+
+    function setFormCircle(circle) {
+      state.formCircle = circle;
+      const btns = document.querySelectorAll('#form-circle-btns button');
+      btns.forEach(b => {
+        if (b.dataset.val === circle) {
+          b.className = circle === '偶像'
+            ? 'py-2 rounded-xl border border-pink-300 bg-pink-500 text-white text-xs font-bold shadow-2xs cursor-pointer'
+            : 'py-2 rounded-xl border border-sky-300 bg-sky-500 text-white text-xs font-bold shadow-2xs cursor-pointer';
+        } else {
+          b.className = 'py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-xs font-semibold cursor-pointer';
+        }
+      });
+    }
+
+    // 開啟新增周邊視窗
+    function openAddMerchModal() {
+      document.getElementById('modal-merch-title').innerHTML = '<span class="text-base">🎀</span> 新增周邊收藏';
+      document.getElementById('btn-save-merch-text').textContent = '儲存收藏';
+      document.getElementById('merch-id').value = '';
+      document.getElementById('merch-name').value = '';
+      document.getElementById('merch-category').value = '小卡/拍立得';
+      document.getElementById('merch-status').value = '已入手';
+      document.getElementById('merch-series').value = '';
+      document.getElementById('merch-character').value = '';
+      document.getElementById('merch-qty').value = 1;
+      document.getElementById('merch-currency').value = 'TWD';
+      document.getElementById('merch-price').value = '';
+      document.getElementById('merch-date').value = getTodayISO();
+      document.getElementById('merch-source').value = '';
+      document.getElementById('merch-notes').value = '';
+
+      state.formImageBase64 = '';
+      setFormImagePreview('');
+      setFormCircle('偶像');
+
+      // 顯示連動記帳開關並預設勾選
+      const syncWrap = document.getElementById('sync-accounting-wrapper');
+      const syncCheck = document.getElementById('merch-sync-accounting');
+      const syncDetails = document.getElementById('sync-accounting-details');
+      syncWrap.classList.remove('hidden');
+      syncCheck.checked = true;
+      syncDetails.classList.remove('hidden');
+      autoDetectSyncCategory();
+      updateSyncPreviewTotal();
+
+      document.getElementById('modal-merch-form').classList.remove('hidden');
+    }
+
+    // 開啟編輯周邊視窗
+    function openEditMerchModal(item) {
+      document.getElementById('modal-merch-title').innerHTML = '<span class="text-base">✏️</span> 編輯周邊明細';
+      document.getElementById('btn-save-merch-text').textContent = '儲存修改';
+      document.getElementById('merch-id').value = item.id;
+      document.getElementById('merch-name').value = item.name;
+      document.getElementById('merch-category').value = item.category;
+      document.getElementById('merch-status').value = item.status;
+      document.getElementById('merch-series').value = item.series || '';
+      document.getElementById('merch-character').value = item.character || '';
+      document.getElementById('merch-qty').value = item.quantity || 1;
+      document.getElementById('merch-currency').value = item.currency || 'TWD';
+      document.getElementById('merch-price').value = item.price || '';
+      document.getElementById('merch-date').value = item.date || getTodayISO();
+      document.getElementById('merch-source').value = item.source || '';
+      document.getElementById('merch-notes').value = item.notes || '';
+
+      state.formImageBase64 = item.image || '';
+      setFormImagePreview(item.image || '');
+      setFormCircle(item.circle || '偶像');
+
+      // 編輯模式隱藏重複記帳開關，避免重複扣款
+      document.getElementById('sync-accounting-wrapper').classList.add('hidden');
+      document.getElementById('modal-merch-form').classList.remove('hidden');
+    }
+
+    // 開啟大圖詳情檢視
+    function openDetailModal(item) {
+      state.currentDetailId = item.id;
+      const imgSrc = item.image || createDefaultMerchSVG(item.circle, item.series || item.name, item.character || item.category);
+      document.getElementById('detail-image').src = imgSrc;
+
+      const statusBadge = document.getElementById('detail-status-badge');
+      statusBadge.textContent = item.status;
+      if (item.status === '已入手') {
+        statusBadge.className = 'absolute top-3 left-3 px-2.5 py-1 rounded-full text-[11px] font-bold shadow-xs bg-emerald-500 text-white';
+      } else if (item.status === '運送中') {
+        statusBadge.className = 'absolute top-3 left-3 px-2.5 py-1 rounded-full text-[11px] font-bold shadow-xs bg-amber-500 text-white';
+      } else {
+        statusBadge.className = 'absolute top-3 left-3 px-2.5 py-1 rounded-full text-[11px] font-bold shadow-xs bg-purple-500 text-white';
+      }
+
+      const circleTag = document.getElementById('detail-circle-tag');
+      circleTag.textContent = item.circle;
+      circleTag.className = item.circle === '偶像'
+        ? 'text-[10px] font-bold px-2 py-0.5 rounded-md bg-pink-100 text-pink-600'
+        : 'text-[10px] font-bold px-2 py-0.5 rounded-md bg-sky-100 text-sky-600';
+
+      document.getElementById('detail-cat-tag').textContent = item.category;
+      const seriesChar = [item.series, item.character].filter(Boolean).join(' · ');
+      document.getElementById('detail-series-char').textContent = seriesChar;
+      document.getElementById('detail-name').textContent = item.name;
+
+      const sym = CURRENCY_SYMBOLS[item.currency] || item.currency;
+      const qty = Number(item.quantity) || 1;
+      const price = Number(item.price) || 0;
+      const total = qty * price;
+      document.getElementById('detail-price-qty').textContent = qty > 1
+        ? `${sym} ${price.toLocaleString()} × ${qty} = ${sym} ${total.toLocaleString()}`
+        : `${sym} ${price.toLocaleString()} (×1)`;
+
+      document.getElementById('detail-source').textContent = item.source || '未填寫';
+      document.getElementById('detail-date').textContent = item.date || '未填寫';
+
+      const notesEl = document.getElementById('detail-notes');
+      if (item.notes) {
+        notesEl.textContent = `📝 ${item.notes}`;
+        notesEl.classList.remove('hidden');
+      } else {
+        notesEl.classList.add('hidden');
+      }
+
+      document.getElementById('modal-merch-detail').classList.remove('hidden');
+    }
+
+    // 渲染周邊統計儀表板與雙欄卡片網格
+    function renderCollections() {
+      let totalQty = 0;
+      let idolQty = 0;
+      let animeQty = 0;
+      const spentByCurrency = {};
+
+      state.collections.forEach(item => {
+        const qty = Number(item.quantity) || 1;
+        const price = Number(item.price) || 0;
+        const cur = item.currency || 'TWD';
+        totalQty += qty;
+        if (item.circle === '偶像') idolQty += qty;
+        if (item.circle === '二次元動漫') animeQty += qty;
+
+        spentByCurrency[cur] = (spentByCurrency[cur] || 0) + qty * price;
+      });
+
+      document.getElementById('stat-total-qty').textContent = totalQty;
+      document.getElementById('stat-unique-count').textContent = state.collections.length;
+      document.getElementById('stat-idol-qty').textContent = idolQty;
+      document.getElementById('stat-anime-qty').textContent = animeQty;
+
+      // 多幣別金額顯示
+      const curEntries = Object.entries(spentByCurrency).filter(([, val]) => val > 0);
+      const spentEl = document.getElementById('stat-total-spent');
+      if (curEntries.length === 0) {
+        spentEl.textContent = 'NT$ 0';
+      } else {
+        spentEl.innerHTML = curEntries
+          .map(([cur, val]) => `${CURRENCY_SYMBOLS[cur] || cur} ${val.toLocaleString()}`)
+          .join('<br>');
+      }
+
+      // 篩選與排序
+      const q = state.merchSearch.trim().toLowerCase();
+      const filtered = state.collections
+        .filter(item => {
+          if (state.merchFilterCircle !== '全部' && item.circle !== state.merchFilterCircle) return false;
+          if (state.merchFilterCategory !== '全部' && item.category !== state.merchFilterCategory) return false;
+          if (q) {
+            const hay = `${item.name} ${item.series || ''} ${item.character || ''} ${item.source || ''} ${item.notes || ''}`.toLowerCase();
+            if (!hay.includes(q)) return false;
+          }
+          return true;
+        })
+        .sort((a, b) => {
+          const totalA = (Number(a.price) || 0) * (Number(a.quantity) || 1);
+          const totalB = (Number(b.price) || 0) * (Number(b.quantity) || 1);
+          if (state.merchSort === 'priceDesc') return totalB - totalA;
+          if (state.merchSort === 'priceAsc') return totalA - totalB;
+          return new Date(b.date || 0) - new Date(a.date || 0);
+        });
+
+      document.getElementById('merch-filtered-count').textContent = filtered.length;
+      const grid = document.getElementById('merch-grid');
+      grid.innerHTML = '';
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-2 bg-white rounded-2xl border border-dashed border-rose-200 p-8 text-center space-y-2">
+            <div class="text-2xl">🧸</div>
+            <p class="text-xs font-bold text-slate-600">找不到符合條件的周邊收藏</p>
+            <p class="text-[11px] text-slate-400">試試切換分類，或點擊右上角「+ 新增收藏」吧！</p>
+          </div>
+        `;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const card = document.createElement('article');
+        card.className = 'bg-white rounded-2xl border border-rose-100/90 shadow-2xs overflow-hidden flex flex-col justify-between cursor-pointer active:scale-[0.98] transition';
+
+        const imgSrc = item.image || createDefaultMerchSVG(item.circle, item.series || item.name, item.character || item.category);
+        const sym = CURRENCY_SYMBOLS[item.currency] || item.currency;
+        const qty = Number(item.quantity) || 1;
+        const total = qty * (Number(item.price) || 0);
+
+        let statusClass = 'bg-emerald-500/90 text-white';
+        if (item.status === '運送中') statusClass = 'bg-amber-500/90 text-white';
+        if (item.status === '預購待發貨') statusClass = 'bg-purple-500/90 text-white';
+
+        const circleBadge = item.circle === '偶像'
+          ? 'bg-pink-50 text-pink-600'
+          : 'bg-sky-50 text-sky-600';
+
+        card.innerHTML = `
+          <div>
+            <div class="relative aspect-[4/4.3] bg-slate-50 overflow-hidden">
+              <img src="${imgSrc}" alt="${item.name}" class="w-full h-full object-cover" loading="lazy" />
+              <span class="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-xs shadow-2xs ${statusClass}">
+                ${item.status}
+              </span>
+              ${qty > 1 ? `<span class="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-slate-900/80 text-white text-[10px] font-extrabold">×${qty}</span>` : ''}
+            </div>
+
+            <div class="p-2.5 space-y-1">
+              <div class="flex items-center gap-1 flex-wrap">
+                <span class="text-[10px] font-bold px-1.5 py-0.2 rounded ${circleBadge}">${item.circle === '偶像' ? '偶像' : '動漫'}</span>
+                <span class="text-[10px] text-slate-400 truncate max-w-[85px]">${item.series || item.category}</span>
+              </div>
+              <h3 class="text-xs font-bold text-slate-800 line-clamp-2 leading-snug">${item.name}</h3>
+            </div>
+          </div>
+
+          <div class="px-2.5 pb-2.5 pt-1.5 border-t border-slate-50 flex items-end justify-between gap-1">
+            <div class="min-w-0">
+              <span class="text-xs font-extrabold text-rose-500 block">${sym} ${total.toLocaleString()}</span>
+              <span class="text-[10px] text-slate-400 truncate block">${item.source || item.date || ''}</span>
+            </div>
+            <span class="text-[10px] text-slate-300 shrink-0"><i class="fa-solid fa-chevron-right"></i></span>
+          </div>
+        `;
+
+        card.onclick = () => openDetailModal(item);
+        grid.appendChild(card);
+      });
+    }
+
+    function setupNavigationAndCollectionEvents() {
+      // 底部導覽列切換
+      document.getElementById('nav-tab-accounting').addEventListener('click', () => switchMainTab('accounting'));
+      document.getElementById('nav-tab-collection').addEventListener('click', () => switchMainTab('collection'));
+
+      // 統計卡片快速篩選
+      document.getElementById('card-filter-idol').addEventListener('click', () => {
+        setMerchCircleTab(state.merchFilterCircle === '偶像' ? '全部' : '偶像');
+      });
+      document.getElementById('card-filter-anime').addEventListener('click', () => {
+        setMerchCircleTab(state.merchFilterCircle === '二次元動漫' ? '全部' : '二次元動漫');
+      });
+
+      // 圈子分頁標籤切換
+      function setMerchCircleTab(circle) {
+        state.merchFilterCircle = circle;
+        const btns = document.querySelectorAll('#merch-circle-tabs button');
+        btns.forEach(b => {
+          if (b.dataset.circle === circle) {
+            b.className = 'flex-1 py-1.5 rounded-lg bg-white text-slate-800 font-bold shadow-2xs transition cursor-pointer';
+          } else {
+            b.className = 'flex-1 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 transition cursor-pointer';
+          }
+        });
+        renderCollections();
+      }
+
+      document.querySelectorAll('#merch-circle-tabs button').forEach(btn => {
+        btn.addEventListener('click', () => setMerchCircleTab(btn.dataset.circle));
+      });
+
+      // 搜尋框與清除按鈕
+      const searchInput = document.getElementById('merch-search');
+      const clearSearchBtn = document.getElementById('btn-clear-search');
+      searchInput.addEventListener('input', (e) => {
+        state.merchSearch = e.target.value;
+        if (state.merchSearch) clearSearchBtn.classList.remove('hidden');
+        else clearSearchBtn.classList.add('hidden');
+        renderCollections();
+      });
+      clearSearchBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        state.merchSearch = '';
+        clearSearchBtn.classList.add('hidden');
+        renderCollections();
+      });
+
+      // 排序切換
+      document.getElementById('merch-sort').addEventListener('change', (e) => {
+        state.merchSort = e.target.value;
+        renderCollections();
+      });
+
+      // 開啟新增收藏彈窗
+      document.getElementById('btn-open-add-merch').addEventListener('click', openAddMerchModal);
+      document.getElementById('btn-close-merch-modal').addEventListener('click', () => {
+        document.getElementById('modal-merch-form').classList.add('hidden');
+      });
+
+      // 圖片上傳與預覽點擊
+      const fileInput = document.getElementById('merch-file-input');
+      document.getElementById('btn-trigger-upload').addEventListener('click', () => fileInput.click());
+      document.getElementById('merch-image-preview-box').addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          handleMerchImageFile(e.target.files[0]);
+        }
+        e.target.value = '';
+      });
+
+      document.getElementById('btn-remove-image').addEventListener('click', () => {
+        state.formImageBase64 = '';
+        setFormImagePreview('');
+      });
+
+      // 表單所屬圈子按鈕
+      document.querySelectorAll('#form-circle-btns button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          setFormCircle(btn.dataset.val);
+          autoDetectSyncCategory();
+        });
+      });
+
+      // 當輸入名稱、團體/作品、購買來源時，自動智慧切換對應的記帳類別
+      ['merch-name', 'merch-series', 'merch-source'].forEach(id => {
+        document.getElementById(id).addEventListener('input', autoDetectSyncCategory);
+      });
+
+      // 連動記帳開關與即時金額試算
+      const syncCheck = document.getElementById('merch-sync-accounting');
+      const syncDetails = document.getElementById('sync-accounting-details');
+      syncCheck.addEventListener('change', (e) => {
+        if (e.target.checked) syncDetails.classList.remove('hidden');
+        else syncDetails.classList.add('hidden');
+      });
+
+      document.getElementById('sync-pay-type').addEventListener('change', (e) => {
+        populateSyncPaymentOptions(e.target.value);
+      });
+
+      ['merch-qty', 'merch-price', 'merch-currency'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateSyncPreviewTotal);
+        document.getElementById(id).addEventListener('change', updateSyncPreviewTotal);
+      });
+
+      // 表單送出儲存（並處理自動連動記帳）
+      document.getElementById('merch-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = document.getElementById('merch-name').value.trim();
+        if (!name) {
+          showToast('請輸入物品名稱！', 'error');
+          return;
+        }
+
+        const editId = document.getElementById('merch-id').value;
+        const category = document.getElementById('merch-category').value;
+        const status = document.getElementById('merch-status').value;
+        const series = document.getElementById('merch-series').value.trim();
+        const character = document.getElementById('merch-character').value.trim();
+        const quantity = Math.max(1, parseInt(document.getElementById('merch-qty').value, 10) || 1);
+        const currency = document.getElementById('merch-currency').value;
+        const price = Math.max(0, parseFloat(document.getElementById('merch-price').value) || 0);
+        const date = document.getElementById('merch-date').value || getTodayISO();
+        const source = document.getElementById('merch-source').value.trim();
+        const notes = document.getElementById('merch-notes').value.trim();
+
+        const itemPayload = {
+          id: editId || `merch-${Date.now()}`,
+          circle: state.formCircle,
+          category,
+          name,
+          series,
+          character,
+          quantity,
+          currency,
+          price,
+          date,
+          source,
+          status,
+          notes,
+          image: state.formImageBase64
+        };
+
+        if (editId) {
+          state.collections = state.collections.map(it => (it.id === editId ? itemPayload : it));
+          if (saveCollections()) {
+            document.getElementById('modal-merch-form').classList.add('hidden');
+            renderCollections();
+            showToast('已更新周邊收藏明細！');
+          }
+        } else {
+          state.collections.unshift(itemPayload);
+          if (!saveCollections()) {
+            state.collections.shift();
+            return;
+          }
+
+          // 🔥 檢查是否勾選「同時新增記帳紀錄」
+          const shouldSync = document.getElementById('merch-sync-accounting').checked;
+          const totalAmount = quantity * price;
+          let syncedSuccess = false;
+
+          if (shouldSync && totalAmount > 0) {
+            const syncCategory = document.getElementById('sync-category').value;
+            const syncPayment = document.getElementById('sync-payment').value;
+            const seriesPrefix = series ? `${series} - ` : '';
+            const sourceSuffix = source ? ` (${source})` : '';
+            const autoNote = `[周邊] ${seriesPrefix}${name}${quantity > 1 ? ` ×${quantity}` : ''}${sourceSuffix}`;
+
+            const accountingRecord = {
+              id: Date.now() + 1,
+              date,
+              currency,
+              category: syncCategory,
+              amount: totalAmount,
+              payment: syncPayment,
+              isSplit: false,
+              payer: '本人',
+              actualAmount: totalAmount,
+              note: autoNote,
+              fromMerch: true
+            };
+
+            state.records.unshift(accountingRecord);
+            saveAccountingRecords();
+            syncedSuccess = true;
+          }
+
+          document.getElementById('modal-merch-form').classList.add('hidden');
+          renderCollections();
+          renderRecords();
+
+          if (syncedSuccess) {
+            showToast('✨ 已存入圖鑑並自動同步至日常記帳！');
+          } else {
+            showToast('🎀 已成功加入周邊圖鑑！');
+          }
+        }
+      });
+
+      // 大圖詳情彈窗操作
+      document.getElementById('btn-close-detail').addEventListener('click', () => {
+        document.getElementById('modal-merch-detail').classList.add('hidden');
+      });
+
+      document.getElementById('btn-detail-edit').addEventListener('click', () => {
+        const target = state.collections.find(it => it.id === state.currentDetailId);
+        document.getElementById('modal-merch-detail').classList.add('hidden');
+        if (target) openEditMerchModal(target);
+      });
+
+      document.getElementById('btn-detail-delete').addEventListener('click', () => {
+        const targetId = state.currentDetailId;
+        document.getElementById('modal-merch-detail').classList.add('hidden');
+        openConfirmModal(
+          '確定要刪除這筆周邊收藏嗎？',
+          '刪除後此照片與圖鑑明細將會移除（已同步的記帳紀錄不會受影響）。',
+          () => {
+            state.collections = state.collections.filter(it => it.id !== targetId);
+            saveCollections();
+            renderCollections();
+            showToast('已刪除該筆收藏');
+          }
+        );
+      });
+
+      // 備份與還原視窗操作
+      document.getElementById('btn-backup-menu').addEventListener('click', () => {
+        document.getElementById('modal-backup').classList.remove('hidden');
+      });
+      document.getElementById('btn-close-backup').addEventListener('click', () => {
+        document.getElementById('modal-backup').classList.add('hidden');
+      });
+
+      document.getElementById('btn-export-merch-json').addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(state.collections, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `妞妞周邊圖鑑備份_${getTodayISO()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        document.getElementById('modal-backup').classList.add('hidden');
+        showToast('圖鑑備份檔 (.json) 已下載！');
+      });
+
+      const importInput = document.getElementById('input-import-json');
+      document.getElementById('btn-trigger-import-json').addEventListener('click', () => importInput.click());
+      importInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const parsed = JSON.parse(ev.target.result);
+            if (Array.isArray(parsed)) {
+              state.collections = parsed;
+              if (saveCollections()) {
+                renderCollections();
+                document.getElementById('modal-backup').classList.add('hidden');
+                showToast(`成功還原 ${parsed.length} 筆周邊收藏！`);
+              }
+            } else {
+              showToast('檔案格式不正確', 'error');
+            }
+          } catch (err) {
+            showToast('讀取備份檔失敗', 'error');
+          }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+      });
+
+      // 通用確認彈窗按鈕
+      document.getElementById('btn-confirm-cancel').addEventListener('click', () => {
+        document.getElementById('modal-confirm').classList.add('hidden');
+        confirmCallback = null;
+      });
+      document.getElementById('btn-confirm-ok').addEventListener('click', () => {
+        document.getElementById('modal-confirm').classList.add('hidden');
+        if (typeof confirmCallback === 'function') {
+          confirmCallback();
+          confirmCallback = null;
+        }
+      });
     }
   </script>
 </body>
